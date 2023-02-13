@@ -5,7 +5,6 @@ import requests, sys, platform, time, os, json, re, calendar, datetime, math, op
 # 微博列表 https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO&page={}
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
 URL_WB_ITEM = 'https://m.weibo.cn/detail/{}'
-CURL_CMD = 'curl "{}" -o "{}" --fail -s -R --show-error --retry 999 --retry-max-time 0 -C -'
 
 
 if platform.system() == 'Windows':
@@ -21,9 +20,15 @@ except:
 
 WBPIC_DIR = os.path.dirname(os.path.realpath(__file__))
 with open(WBPIC_DIR + os.sep + 'wbpic-opts.json') as f:
-	opts = json.load(f, )
-with open(WBPIC_DIR + os.sep + 'wbpic-uids.json') as f:
-	uids = json.load(f)
+	opts = json.load(f)
+if ('proxy' in opts):
+	headers_pics_curl = ' -x ' + opts['proxy']
+else:
+	headers_pics_curl = ''
+for n in opts['headers_pics']:
+	headers_pics_curl = headers_pics_curl + ' -H "{}: {}"'.format(n, opts['headers_pics'][n])
+print('REM #DEBUG: CURL_OPTS=', headers_pics_curl, file=sys.stderr)
+CURL_CMD = 'curl "{}" -o "{}" --fail -s -R --show-error --retry 999 --retry-max-time 0 -C -' + headers_pics_curl
 
 session = requests.Session()
 session.trust_env = not 'proxy' in opts or opts['proxy'].lower() == 'sys'
@@ -46,28 +51,39 @@ def pic(pics, dirname, created, bid, pindex):
 			try:
 				pic = pics[str(pi)]
 			except:
-				print('REM #ERROR: ', dirname, '{}[{}]'.format(bid, pi), created, file=sys.stderr)
+				print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' live video ignored: ', pic['large']['url'], file=sys.stderr)
 				continue
-		fext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
-		fname = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi + 1, pic['pid'], fext)
+		ext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
+		if (ext.lower() == '.gif'):
+			print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' gif ignored.', file=sys.stderr)
+			continue
+		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi + 1, pic['pid'], ext)
 		img = {
 			'id': pic['pid'],
 			'url': pic['large']['url'],
-			'width': pic['large']['geo']['width'],
-			'height': pic['large']['geo']['height'],
+			'width': int(pic['large']['geo']['width']),
+			'height': int(pic['large']['geo']['height']),
 			'dirname': dirname,
-			'filename': 
+			'filename': filename
 		}
-		if (pic['large']['geo']['width'] > 480 and pic['large']['geo']['height'] > 480):
-			print(CURL_CMD.format(img['url'], img['dirname'] + os.sep + img['filename']))
+		if (img['width'] > 480 and img['height'] > 480):
+			imgpath = img['dirname']
+			if ('basedir' in opts):
+				imgpath = opts['basedir'] + os.sep + imgpath
+			if (not os.path.isdir(imgpath)):
+				os.makedirs(imgpath, exist_ok=True)
+			imgpath = imgpath + os.sep + img['filename']
+			print(CURL_CMD.format(img['url'], imgpath))
+		else:
+			print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' small ignored.', file=sys.stderr)
 
 def normalizedir(mblog):
-	nickname = re.sub('^[·_-]+', '', mblog['user']['screen_name'])
-	nickname = re.sub('[·_-]+$', '', mblog['user']['screen_name'])
+	nickname = mblog['user']['screen_name']
+	nickname = re.sub('^[·_-]+', '', nickname)
+	nickname = re.sub('[·_-]+$', '', nickname)
 	return '{}-{}'.format(nickname, mblog['user']['id'])
 
-def list(userid, after=datetime.datetime.today().date() - datetime.timedelta(1)): # defalt yesterday to now
-	dir_made = False
+def list(userid, after): # defalt yesterday to now
 	since_id = ''
 	while (True):
 		target = URL_WB_LIST.format(userid, since_id)
@@ -121,9 +137,32 @@ def list(userid, after=datetime.datetime.today().date() - datetime.timedelta(1))
 ## 三無人型：	5270294200
 ## 轩萧学姐:	5604678555
 
-# before = datetime.datetime.strptime(sys.argv[1], '%Y%m%d').date()
-# for uid in uids:
-# 	list(uid, before)
-		
-sample = list(sys.argv[1], datetime.datetime.strptime('20230201', '%Y%m%d').date())
+def __main__():
+	if (len(sys.argv) <= 1):
+		after = '1' # default yesterday
+	elif (sys.argv[1] != ''):
+		after = sys.argv[1]
+	else:
+		after = '20090801' # weibo init on 20090814
+	if (eval(after) < 9999): # days
+		after = datetime.datetime.today().date() - datetime.timedelta(eval(after))
+	else:
+		after = datetime.datetime.strptime(after, '%Y%m%d').date()
+
+	idsarg = sys.argv[2:]
+	if (len(idsarg) > 0):
+		uids = [eval(i) for i in idsarg]
+	else:
+		with open(WBPIC_DIR + os.sep + 'wbpic-uids.json') as f:
+			uids = json.load(f)
+
+	for uid in uids:
+		list(uid, after)
+
+# list(7575160994, datetime.datetime.strptime('20000101', '%Y%m%d').date())
 # print(json.dumps(sample, indent=2, default=str))
+
+__main__()
+
+print('REM #INFO Whole parsing finished, run the curl script to download.', file=sys.stderr)
+
