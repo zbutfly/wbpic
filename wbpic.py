@@ -1,4 +1,4 @@
-import requests, sys, platform, time, os, json, re, calendar, datetime, math, operator
+import requests, sys, platform, time, os, json, re, calendar, datetime, math, operator, random
 
 
 ## entry url
@@ -19,10 +19,10 @@ try:
 except:
 	pass
 
-
-with open('wbpic-opts.json') as f:
+WBPIC_DIR = os.path.dirname(os.path.realpath(__file__))
+with open(WBPIC_DIR + os.sep + 'wbpic-opts.json') as f:
 	opts = json.load(f, )
-with open('wbpic-uids.json') as f:
+with open(WBPIC_DIR + os.sep + 'wbpic-uids.json') as f:
 	uids = json.load(f)
 
 session = requests.Session()
@@ -38,103 +38,92 @@ def parseTime(createdStr):
 	ts = segs[3].split(':')
 	return datetime.datetime(int(segs[5]), MONS.index(segs[1]), int(segs[2]), int(ts[0]), int(ts[1]), int(ts[2]))
 
+def pic(pics, dirname, created, bid, pindex):
+	for pi in range(pindex, len(pics)):
+		try:
+			pic = pics[pi]
+		except:
+			try:
+				pic = pics[str(pi)]
+			except:
+				print('REM #ERROR: ', dirname, '{}[{}]'.format(bid, pi), created, file=sys.stderr)
+				continue
+		fext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
+		fname = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi + 1, pic['pid'], fext)
+		img = {
+			'id': pic['pid'],
+			'url': pic['large']['url'],
+			'width': pic['large']['geo']['width'],
+			'height': pic['large']['geo']['height'],
+			'dirname': dirname,
+			'filename': 
+		}
+		if (pic['large']['geo']['width'] > 480 and pic['large']['geo']['height'] > 480):
+			print(CURL_CMD.format(img['url'], img['dirname'] + os.sep + img['filename']))
+
+def normalizedir(mblog):
+	nickname = re.sub('^[·_-]+', '', mblog['user']['screen_name'])
+	nickname = re.sub('[·_-]+$', '', mblog['user']['screen_name'])
+	return '{}-{}'.format(nickname, mblog['user']['id'])
+
 def list(userid, after=datetime.datetime.today().date() - datetime.timedelta(1)): # defalt yesterday to now
 	dir_made = False
-	wbs = []
 	since_id = ''
 	while (True):
 		target = URL_WB_LIST.format(userid, since_id)
+		print('REM #DEBUG: ', target, 'is parsing', file=sys.stderr)
 		response = session.get(target, headers = None, stream = False, verify = False)
 		if (response.status_code < 200 or response.status_code > 299):
-			return wbs
-		jsonresp = json.loads(response.text)
+			return
+		try:
+			jsonresp = json.loads(response.text)
+		except json.decoder.JSONDecodeError:
+			print('#ERROR: ', response.text, file=sys.stderr)
+			
 		if (1 != jsonresp['ok']):
-			return wbs
-		since_id = jsonresp['data']['cardlistInfo']['since_id']
+			return
 		dirname = ''
-		##### print(json.dumps(jsonresp, indent=2))
 		for card in jsonresp['data']['cards']:
+			if (not 'mblog' in card):
+				continue
 			mblog = card['mblog']
 			if (not 'pics' in mblog):
 				continue
+			newdir = normalizedir(mblog)
 			if (dirname == ''):
-				dirname = '{}-{}'.format(mblog['user']['screen_name'], mblog['user']['id'])
-			elif (dirname != '{}-{}'.format(mblog['user']['screen_name'], mblog['user']['id'])):
-				print('#WARN: diff user: ', dirname, '{}-{}'.format(mblog['user']['screen_name'], mblog['user']['id']))
-			if (not dir_made and not os.path.isdir(dirname)):
-				os.makedirs(dirname, exist_ok=True)
-				dir_made = True
+				dirname = newdir
+			elif (dirname != newdir):
+				print('REM #WARN: diff user: ', dirname, newdir, file=sys.stderr)
 			created = parseTime(mblog['created_at'])
 			if (created.date() < after):
-				print('#DEBUG: ', 'exceed: ', created.date())
-				return wbs
+				print('REM #DEBUG: ', dirname, 'exceed: ', created.date(), file=sys.stderr)
+				return
 
-			wb = {
-				'created_at': created,
-				'bid': mblog['bid'],
-				'mid': mblog['mid'],
-				'pics': []
-			}
-			pindex = 0
-			for pic in mblog['pics']:
-				pindex = pindex + 1
-				img = {
-					'id': pic['pid'],
-					'index': pindex, 
-					'url': pic['large']['url'],
-					'width': pic['large']['geo']['width'],
-					'height': pic['large']['geo']['height'],
-					'dirname': dirname,
-					'filename': created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(wb['bid'], pindex, pic['pid'], os.path.splitext(pic['large']['url'])[1])
-				}
-				wb['pics'].append(img)
+			pic(mblog['pics'], dirname, created, mblog['bid'], 0)
 			if (mblog['pic_num'] > 9):
 				# https://m.weibo.cn/status/{}
 				wburl =  card['scheme'] # https://m.weibo.cn/detail/4850366267002849
-				# print('#TODO: checking {} for {} pics'.format(wburl, mblog['pic_num']))
+				# print('REM #TODO: checking {} for {} pics'.format(wburl, mblog['pic_num']))
 				with session.get(wburl) as r:
 					m = re.search(r'var \$render_data = \[(.+)\]\[0\] \|\| {};', r.text, flags=re.DOTALL)
 					if not m:
-						print('#ERROR Cannot parse post. Try to set cookie.')
+						print('REM #ERROR Cannot parse post. Try to set cookie.', wburl, r, '\n\t', r.text, file=sys.stderr)
 					else:
-						for pic in json.loads(m[1])['status']['pics'][9:]:
-							pindex = pindex + 1
-							img = {
-								'id': pic['pid'],
-								'index': pindex,
-								'url': pic['large']['url'],
-								'width': pic['large']['geo']['width'],
-								'height': pic['large']['geo']['height'],
-								'dirname': dirname,
-								'filename': created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(wb['bid'], pindex, pic['pid'], os.path.splitext(pic['large']['url'])[1])
-							}
-							wb['pics'].append(img)
-			wbs.append(wb)
-	return wbs
+						pic(json.loads(m[1])['status']['pics'][9:], dirname, created, mblog['bid'], 8)
+		if (not 'since_id' in jsonresp['data']['cardlistInfo']):
+			print('REM #DEBUG: ', dirname, 'finished whole weibo history.', file=sys.stderr)
+			return
+		since_id = jsonresp['data']['cardlistInfo']['since_id']
+		time.sleep(abs(random.gauss(0.5, 0.3)))
+	time.sleep(random.gauss(0.6, 1))
 
 ## 孔雀死孔雀:	2971240104
 ## 三無人型：	5270294200
 ## 轩萧学姐:	5604678555
 
-# -x http://pc-hz20099585:8899
-def all():
-	for uid in uids:
-		for wb in list(5270294200, datetime.datetime.strptime(sys.argv[1], '%Y%m%d').date()):
-			for pic in wb['pics']:
-				try:
-					response = session.get(pic['url'], headers = opts['headers_pics'], stream = False, verify = False)
-					assert response.status_code != 418
-					result = json.loads(response.text)
-				except AssertionError:
-					print('#WARN: punished by anti-scraping mechanism (#{})'.format(pic))
-				except Exception:
-					pass
-				else:
-					print(CURL_CMD.format(pic.url, pic['dirname'] + os.sep + pic['filename']))
-				# finally:
-				# 	time.sleep(1);
-
-# all()
+# before = datetime.datetime.strptime(sys.argv[1], '%Y%m%d').date()
+# for uid in uids:
+# 	list(uid, before)
 		
-sample = list(5270294200, datetime.datetime.strptime(sys.argv[1], '%Y%m%d').date())
+sample = list(sys.argv[1], datetime.datetime.strptime('20230201', '%Y%m%d').date())
 # print(json.dumps(sample, indent=2, default=str))
