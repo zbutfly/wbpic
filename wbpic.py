@@ -1,17 +1,12 @@
 import requests, sys, platform, time, os, json, re, calendar, datetime, math, operator
 
-## containerId
-# 100505 个人主页信息
-# 107603 首页微博列表（无isTop标识）
-# 230283
-# 230413 微博列表
-# 231522
 
 ## entry url
 # 微博列表 https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO&page={}
-URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}&page={}'
-
+URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
 URL_WB_ITEM = 'https://m.weibo.cn/detail/{}'
+CURL_CMD = 'curl "{}" -o "{}" --fail -s -R --show-error --retry 999 --retry-max-time 0 -C -'
+
 
 if platform.system() == 'Windows':
 	if operator.ge(*map(lambda version: list(map(int, version.split('.'))), [platform.version(), '10.0.14393'])):
@@ -26,11 +21,9 @@ except:
 
 
 with open('wbpic-opts.json') as f:
-	opts = json.load(f)
+	opts = json.load(f, )
 with open('wbpic-uids.json') as f:
 	uids = json.load(f)
-
-
 
 session = requests.Session()
 session.trust_env = not 'proxy' in opts or opts['proxy'].lower() == 'sys'
@@ -48,46 +41,34 @@ def parseTime(createdStr):
 def list(userid, after=datetime.datetime.today().date() - datetime.timedelta(1)): # defalt yesterday to now
 	dir_made = False
 	wbs = []
-	page = 1
+	since_id = ''
 	while (True):
-		target = URL_WB_LIST.format(userid, page)
-		page = page + 1
+		target = URL_WB_LIST.format(userid, since_id)
 		response = session.get(target, headers = None, stream = False, verify = False)
 		if (response.status_code < 200 or response.status_code > 299):
 			return wbs
 		jsonresp = json.loads(response.text)
 		if (1 != jsonresp['ok']):
 			return wbs
+		since_id = jsonresp['data']['cardlistInfo']['since_id']
 		dirname = ''
 		##### print(json.dumps(jsonresp, indent=2))
 		for card in jsonresp['data']['cards']:
-			if (card['card_type'] != 9):
-				continue
 			mblog = card['mblog']
+			if (not 'pics' in mblog):
+				continue
 			if (dirname == ''):
 				dirname = '{}-{}'.format(mblog['user']['screen_name'], mblog['user']['id'])
-			else:
-				print("#WARN: diff user: ", dirname, '{}-{}'.format(mblog['user']['screen_name'], mblog['user']['id']))
-			if (not dir_made and os.path.isdir('new_folder')):
+			elif (dirname != '{}-{}'.format(mblog['user']['screen_name'], mblog['user']['id'])):
+				print('#WARN: diff user: ', dirname, '{}-{}'.format(mblog['user']['screen_name'], mblog['user']['id']))
+			if (not dir_made and not os.path.isdir(dirname)):
 				os.makedirs(dirname, exist_ok=True)
 				dir_made = True
-			##### print('\n\n=> ', mblog)
-			# if ('isTop' in mblog and mblog['isTop'] == 1):
-			# 	continue
-			# card_type = 9
-			# isTop != 1
-			# exclude: mblog.retweeted_status
-			# exclude: mblog.action_info
-			if ('retweeted_status' in mblog or 'action_info' in mblog or not 'pics' in mblog):
-				continue
 			created = parseTime(mblog['created_at'])
 			if (created.date() < after):
-				if ('isTop' in mblog and mblog['isTop'] == 1):
-					continue
-				else:
-					print('====> ', 'exceed: ', created.date())
-					return wbs
-			# return: mblog.created_at/bid/mid, mblog.pic_num(18?), mblog.pics[].large.url, mblog.pics[].large.geo.width/height
+				print('#DEBUG: ', 'exceed: ', created.date())
+				return wbs
+
 			wb = {
 				'created_at': created,
 				'bid': mblog['bid'],
@@ -97,23 +78,63 @@ def list(userid, after=datetime.datetime.today().date() - datetime.timedelta(1))
 			pindex = 0
 			for pic in mblog['pics']:
 				pindex = pindex + 1
-				wb['pics'].append({
+				img = {
 					'id': pic['pid'],
+					'index': pindex, 
 					'url': pic['large']['url'],
 					'width': pic['large']['geo']['width'],
 					'height': pic['large']['geo']['height'],
 					'dirname': dirname,
 					'filename': created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(wb['bid'], pindex, pic['pid'], os.path.splitext(pic['large']['url'])[1])
-				})
+				}
+				wb['pics'].append(img)
 			if (mblog['pic_num'] > 9):
-				wburl = 'https://m.weibo.cn/detail/{}'.format(wb.mid) # https://m.weibo.cn/detail/4850366267002849
-				print('#TODO: checking {} for more than 9 pics'.format(wburl))
-				# retun: egrep --color=NONE -o "url\": \"https://.*/large/[^\"]*" "4850366267002849.html"
+				# https://m.weibo.cn/status/{}
+				wburl =  card['scheme'] # https://m.weibo.cn/detail/4850366267002849
+				# print('#TODO: checking {} for {} pics'.format(wburl, mblog['pic_num']))
+				with session.get(wburl) as r:
+					m = re.search(r'var \$render_data = \[(.+)\]\[0\] \|\| {};', r.text, flags=re.DOTALL)
+					if not m:
+						print('#ERROR Cannot parse post. Try to set cookie.')
+					else:
+						for pic in json.loads(m[1])['status']['pics'][9:]:
+							pindex = pindex + 1
+							img = {
+								'id': pic['pid'],
+								'index': pindex,
+								'url': pic['large']['url'],
+								'width': pic['large']['geo']['width'],
+								'height': pic['large']['geo']['height'],
+								'dirname': dirname,
+								'filename': created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(wb['bid'], pindex, pic['pid'], os.path.splitext(pic['large']['url'])[1])
+							}
+							wb['pics'].append(img)
 			wbs.append(wb)
 	return wbs
 
 ## 孔雀死孔雀:	2971240104
 ## 三無人型：	5270294200
 ## 轩萧学姐:	5604678555
+
+# -x http://pc-hz20099585:8899
+def all():
+	for uid in uids:
+		for wb in list(5270294200, datetime.datetime.strptime(sys.argv[1], '%Y%m%d').date()):
+			for pic in wb['pics']:
+				try:
+					response = session.get(pic['url'], headers = opts['headers_pics'], stream = False, verify = False)
+					assert response.status_code != 418
+					result = json.loads(response.text)
+				except AssertionError:
+					print('#WARN: punished by anti-scraping mechanism (#{})'.format(pic))
+				except Exception:
+					pass
+				else:
+					print(CURL_CMD.format(pic.url, pic['dirname'] + os.sep + pic['filename']))
+				# finally:
+				# 	time.sleep(1);
+
+# all()
+		
 sample = list(5270294200, datetime.datetime.strptime(sys.argv[1], '%Y%m%d').date())
 # print(json.dumps(sample, indent=2, default=str))
