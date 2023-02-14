@@ -50,8 +50,17 @@ def parseTime(createdStr):
 	ts = segs[3].split(':')
 	return datetime.datetime(int(segs[5]), MONS.index(segs[1]), int(segs[2]), int(ts[0]), int(ts[1]), int(ts[2]))
 
+flogname = 'checked.log'
+if 'basedir' in opts:
+	flogname = opts['basedir'] + os.sep + flogname
+pids = []
+if os.path.exists(flogname):
+	with open(flogname) as flog:
+		pids = [line.rstrip() for line in flog]
+flog = open(flogname, 'a')
+
 CURL_PRINT_COUNT=0
-def pic(pics, dirname, created, bid, pindex):
+def list1pic(pics, dirname, created, bid, pindex):
 	global CURL_PRINT_COUNT
 	for pi in range(pindex, len(pics)):
 		try:
@@ -62,6 +71,7 @@ def pic(pics, dirname, created, bid, pindex):
 			except:
 				print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' live video ignored: ', pic['large']['url'], file=sys.stderr)
 				continue
+
 		ext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
 		if ext.lower() == '.gif':
 			print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' gif ignored.', file=sys.stderr)
@@ -77,18 +87,24 @@ def pic(pics, dirname, created, bid, pindex):
 			'dirname': dirname,
 			'filename': filename
 		}
-		
-		if img['width'] > opts.get('min_dimension', 360) and img['height'] > opts.get('min_dimension', 360):
-			imgpath = img['dirname']
-			if 'basedir' in opts:
-				imgpath = opts['basedir'] + os.sep + imgpath
-			if not os.path.isdir(imgpath):
-				os.makedirs(imgpath, exist_ok=True)
-			imgpath = imgpath + os.sep + img['filename']
-			print(CURL_CMD.format(img['url'], imgpath))
-			CURL_PRINT_COUNT = CURL_PRINT_COUNT + 1
-		else:
+
+		if img['width'] <= opts.get('min_dimension', 360) or img['height'] <= opts.get('min_dimension', 360):
 			print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' small ignored.', file=sys.stderr)
+			continue
+		if pic['pid'] in pids:
+			print('REM #DEBUG: ignore checked ', dirname, filename, file=sys.stderr)
+			continue
+		if 'basedir' in opts:
+			dirn = opts['basedir'] + os.sep + dirname
+		else:
+			dirn = dirname
+		if not os.path.isdir(dirn):
+			os.makedirs(dirn, exist_ok=True)
+		print(CURL_CMD.format(img['url'], dirn + os.sep + filename))
+		CURL_PRINT_COUNT = CURL_PRINT_COUNT + 1
+		flog.writelines([pic['pid'], '\n'])
+		#else:
+		#	print('REM #DEBUG: ignore existed ', dirname, file=sys.stderr)
 
 def normalizedir(mblog):
 	nickname = mblog['user']['screen_name']
@@ -103,7 +119,7 @@ def httpget(target):
 	while retry < RETRY_MAX:
 		try:
 			with session.get(target, headers = opts.get('headers_auth'), stream = False, verify = False) as r:
-				if r.status_code != 418:
+				if r.status_code != 418 and r.status_code < 500:
 					retry = RETRY_MAX
 					if r.status_code < 200 or r.status_code > 299:
 						print('REM #ERROR: ', target, 'fetch incorrectly', r, r.text, file=sys.stderr)
@@ -112,6 +128,7 @@ def httpget(target):
 				else:
 					retry = retry + 1
 					print('REM #ERROR: ', target, r, ' retry #', retry, file=sys.stderr)
+					time.sleep(abs(random.gauss(HTTP_SLEEP_SECS*10, HTTP_SLEEP_SECS*4)))
 		except Exception as e:
 			print('REM #ERROR: ', target, r, r.text, '\n\t', e, file=sys.stderr)
 			return
@@ -149,7 +166,7 @@ def list(userid, after): # defalt yesterday to now
 				print('REM #DEBUG: ', dirname, 'exceed: ', created.date(), file=sys.stderr)
 				return
 
-			pic(mblog['pics'], dirname, created, mblog['bid'], 0)
+			list1pic(mblog['pics'], dirname, created, mblog['bid'], 0)
 			if mblog['pic_num'] > 9:
 				# https://m.weibo.cn/status/{}
 				wburl = card['scheme'] # https://m.weibo.cn/detail/4850366267002849
@@ -159,7 +176,7 @@ def list(userid, after): # defalt yesterday to now
 				if not m:
 					print('REM #ERROR Cannot parse post. Try to set cookie.', wburl, '\n', html, file=sys.stderr)
 				else:
-					pic(json.loads(m[1])['status']['pics'], dirname, created, mblog['bid'], 9)
+					list1pic(json.loads(m[1])['status']['pics'], dirname, created, mblog['bid'], 9)
 		if not 'since_id' in jsonobj['data']['cardlistInfo']:
 			print('REM #DEBUG: ', dirname, 'finished whole weibo history.', file=sys.stderr)
 			return
@@ -191,6 +208,6 @@ def __main__():
 # print(json.dumps(sample, indent=2, default=str))
 
 __main__()
-
+flog.close()
 print('REM #INFO Whole parsing finished, run the curl script to download, {} pictures.'.format(CURL_PRINT_COUNT), file=sys.stderr)
 

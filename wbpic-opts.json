@@ -1,6 +1,6 @@
 {
-	"basedir": "..\\wbpics",
 	"proxy": "", // "sys" (default), "http(s)://user:pass@host:port", "socks5://user:pass@host:port"
+	"basedir": "wbpics",
 	"headers_pics": {
 		"User-Agent": "Mozilla/5.0 (Linux; Android 9; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.80 Mobile Safari/537.36",
 		"Accept": "image/avif,image/webp,*/*",
@@ -14,5 +14,24 @@
 		"Sec-Fetch-Site": "cross-site",
 		"Pragma": "no-cache",
 		"Cache-Control": "no-cache"
+	},
+	"headers_auth": {
+		"Accept": "*/*",
+		"Referer": "https://m.weibo.cn",
+		"X-Requested-With": "XMLHttpRequest",
+		"MWeibo-Pwa": "1",
+		"X-XSRF-TOKEN": "11d6bf",
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/111.0",
+		"Accept-Language": "zh-CN,en-US;q=0.8,en;q=0.5,zh-TW;q=0.3",
+		"Accept-Encoding": "gzip, deflate, br",
+		"DNT": "1",
+		"Connection": "keep-alive",
+		"Pragma": "no-cache",
+		"Cache-Control": "no-cache",
+		"Sec-Fetch-Dest": "empty",
+		"Sec-Fetch-Mode": "cors",
+		"Sec-Fetch-Site": "same-origin",
+		"TE": "trailers",
+		"Cookie": ""
 	}
 }
