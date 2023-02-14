@@ -1,8 +1,15 @@
 import requests, sys, platform, time, os, json, re, calendar, datetime, math, operator, random
 
+## TODO
+# 1. VIP图片分析
+# 2. VIP首图403问题
+# 3. Live Video换成图片
+# 4. HTTP 418 反爬虫等待重试
 
 ## entry url
-# 微博列表 https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO&page={}
+# 全部微博		https://m.weibo.cn/p/230413{}_-_WEIBO_SECOND_PROFILE_WEIBO&page={}
+# 原创微博		https://m.weibo.cn/p/230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}
+# 全部微博JSON	https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO&page={}
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
 URL_WB_ITEM = 'https://m.weibo.cn/detail/{}'
 
@@ -21,18 +28,18 @@ except:
 WBPIC_DIR = os.path.dirname(os.path.realpath(__file__))
 with open(WBPIC_DIR + os.sep + 'wbpic-opts.json') as f:
 	opts = json.load(f)
-if ('proxy' in opts):
+if 'proxy' in opts:
 	headers_pics_curl = ' -x ' + opts['proxy']
 else:
 	headers_pics_curl = ''
 for n in opts['headers_pics']:
 	headers_pics_curl = headers_pics_curl + ' -H "{}: {}"'.format(n, opts['headers_pics'][n])
 print('REM #DEBUG: CURL_OPTS=', headers_pics_curl, file=sys.stderr)
-CURL_CMD = 'curl "{}" -o "{}" --fail -s -R --show-error --retry 999 --retry-max-time 0 -C -' + headers_pics_curl
+CURL_CMD = 'curl "{}" -o "{}" --fail -k -s -R --show-error --retry 999 --retry-max-time 0 -C -' + headers_pics_curl
 
 session = requests.Session()
 session.trust_env = not 'proxy' in opts or opts['proxy'].lower() == 'sys'
-if (not session.trust_env and opts.get('proxy') != ''):
+if not session.trust_env and opts.get('proxy') != '':
 	session.proxies.update({"https": opts.get('proxy'), "http": opts.get('proxy')})
 
 # created_at: "Sun Dec 25 00:54:56 +0800 2022"
@@ -43,7 +50,9 @@ def parseTime(createdStr):
 	ts = segs[3].split(':')
 	return datetime.datetime(int(segs[5]), MONS.index(segs[1]), int(segs[2]), int(ts[0]), int(ts[1]), int(ts[2]))
 
+CURL_PRINT_COUNT=0
 def pic(pics, dirname, created, bid, pindex):
+	global CURL_PRINT_COUNT
 	for pi in range(pindex, len(pics)):
 		try:
 			pic = pics[pi]
@@ -54,9 +63,11 @@ def pic(pics, dirname, created, bid, pindex):
 				print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' live video ignored: ', pic['large']['url'], file=sys.stderr)
 				continue
 		ext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
-		if (ext.lower() == '.gif'):
+		if ext.lower() == '.gif':
 			print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' gif ignored.', file=sys.stderr)
 			continue
+		if (pic['large']['url'].startswith('https://zzx.')):
+			ext = '[zzx]' + ext
 		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi + 1, pic['pid'], ext)
 		img = {
 			'id': pic['pid'],
@@ -66,14 +77,16 @@ def pic(pics, dirname, created, bid, pindex):
 			'dirname': dirname,
 			'filename': filename
 		}
-		if (img['width'] > 480 and img['height'] > 480):
+		
+		if img['width'] > opts.get('min_dimension', 360) and img['height'] > opts.get('min_dimension', 360):
 			imgpath = img['dirname']
-			if ('basedir' in opts):
+			if 'basedir' in opts:
 				imgpath = opts['basedir'] + os.sep + imgpath
-			if (not os.path.isdir(imgpath)):
+			if not os.path.isdir(imgpath):
 				os.makedirs(imgpath, exist_ok=True)
 			imgpath = imgpath + os.sep + img['filename']
 			print(CURL_CMD.format(img['url'], imgpath))
+			CURL_PRINT_COUNT = CURL_PRINT_COUNT + 1
 		else:
 			print('REM #WARN: ', dirname, '{}[{}]'.format(bid, pi), created, ' small ignored.', file=sys.stderr)
 
@@ -83,74 +96,89 @@ def normalizedir(mblog):
 	nickname = re.sub('[·_-]+$', '', nickname)
 	return '{}-{}'.format(nickname, mblog['user']['id'])
 
+HTTP_SLEEP_SECS = 0.4
+RETRY_MAX = 5
+def httpget(target):
+	retry = 0
+	while retry < RETRY_MAX:
+		try:
+			with session.get(target, headers = opts.get('headers_auth'), stream = False, verify = False) as r:
+				if r.status_code != 418:
+					retry = RETRY_MAX
+					if r.status_code < 200 or r.status_code > 299:
+						print('REM #ERROR: ', target, 'fetch incorrectly', r, r.text, file=sys.stderr)
+						return
+					return r.text
+				else:
+					retry = retry + 1
+					print('REM #ERROR: ', target, r, ' retry #', retry, file=sys.stderr)
+		except Exception as e:
+			print('REM #ERROR: ', target, r, r.text, '\n\t', e, file=sys.stderr)
+			return
+		finally:
+			time.sleep(abs(random.gauss(HTTP_SLEEP_SECS, HTTP_SLEEP_SECS/2.5)))
+
+
 def list(userid, after): # defalt yesterday to now
 	since_id = ''
 	while (True):
 		target = URL_WB_LIST.format(userid, since_id)
 		print('REM #DEBUG: ', target, 'is parsing', file=sys.stderr)
-		response = session.get(target, headers = None, stream = False, verify = False)
-		if (response.status_code < 200 or response.status_code > 299):
+		jsonstr = httpget(target)
+		jsonobj = json.loads(jsonstr)
+		if not jsonobj:
+			print('REM #ERROR: ', target, 'json invalid', '\n', jsonstr, file=sys.stderr)
 			return
-		try:
-			jsonresp = json.loads(response.text)
-		except json.decoder.JSONDecodeError:
-			print('#ERROR: ', response.text, file=sys.stderr)
 			
-		if (1 != jsonresp['ok']):
+		if 1 != jsonobj['ok']:
 			return
 		dirname = ''
-		for card in jsonresp['data']['cards']:
-			if (not 'mblog' in card):
+		for card in jsonobj['data']['cards']:
+			if not 'mblog' in card:
 				continue
 			mblog = card['mblog']
-			if (not 'pics' in mblog):
+			if not 'pics' in mblog:
 				continue
 			newdir = normalizedir(mblog)
-			if (dirname == ''):
+			if dirname == '':
 				dirname = newdir
-			elif (dirname != newdir):
+			elif dirname != newdir:
 				print('REM #WARN: diff user: ', dirname, newdir, file=sys.stderr)
 			created = parseTime(mblog['created_at'])
-			if (created.date() < after):
+			if created.date() < after:
 				print('REM #DEBUG: ', dirname, 'exceed: ', created.date(), file=sys.stderr)
 				return
 
 			pic(mblog['pics'], dirname, created, mblog['bid'], 0)
-			if (mblog['pic_num'] > 9):
+			if mblog['pic_num'] > 9:
 				# https://m.weibo.cn/status/{}
-				wburl =  card['scheme'] # https://m.weibo.cn/detail/4850366267002849
+				wburl = card['scheme'] # https://m.weibo.cn/detail/4850366267002849
 				# print('REM #TODO: checking {} for {} pics'.format(wburl, mblog['pic_num']))
-				with session.get(wburl) as r:
-					m = re.search(r'var \$render_data = \[(.+)\]\[0\] \|\| {};', r.text, flags=re.DOTALL)
-					if not m:
-						print('REM #ERROR Cannot parse post. Try to set cookie.', wburl, r, '\n\t', r.text, file=sys.stderr)
-					else:
-						pic(json.loads(m[1])['status']['pics'][9:], dirname, created, mblog['bid'], 8)
-		if (not 'since_id' in jsonresp['data']['cardlistInfo']):
+				html = httpget(wburl)
+				m = re.search(r'var \$render_data = \[(.+)\]\[0\] \|\| {};', html, flags=re.DOTALL)
+				if not m:
+					print('REM #ERROR Cannot parse post. Try to set cookie.', wburl, '\n', html, file=sys.stderr)
+				else:
+					pic(json.loads(m[1])['status']['pics'], dirname, created, mblog['bid'], 9)
+		if not 'since_id' in jsonobj['data']['cardlistInfo']:
 			print('REM #DEBUG: ', dirname, 'finished whole weibo history.', file=sys.stderr)
 			return
-		since_id = jsonresp['data']['cardlistInfo']['since_id']
-		time.sleep(abs(random.gauss(0.5, 0.3)))
-	time.sleep(random.gauss(0.6, 1))
-
-## 孔雀死孔雀:	2971240104
-## 三無人型：	5270294200
-## 轩萧学姐:	5604678555
+		since_id = jsonobj['data']['cardlistInfo']['since_id']
 
 def __main__():
-	if (len(sys.argv) <= 1):
+	if len(sys.argv) <= 1:
 		after = '1' # default yesterday
-	elif (sys.argv[1] != ''):
+	elif sys.argv[1] != '':
 		after = sys.argv[1]
 	else:
 		after = '20090801' # weibo init on 20090814
-	if (eval(after) < 9999): # days
+	if eval(after) < 9999: # days
 		after = datetime.datetime.today().date() - datetime.timedelta(eval(after))
 	else:
 		after = datetime.datetime.strptime(after, '%Y%m%d').date()
-
+	print('REM #INFO: after', after, file=sys.stderr)
 	idsarg = sys.argv[2:]
-	if (len(idsarg) > 0):
+	if len(idsarg) > 0:
 		uids = [eval(i) for i in idsarg]
 	else:
 		with open(WBPIC_DIR + os.sep + 'wbpic-uids.json') as f:
@@ -164,5 +192,5 @@ def __main__():
 
 __main__()
 
-print('REM #INFO Whole parsing finished, run the curl script to download.', file=sys.stderr)
+print('REM #INFO Whole parsing finished, run the curl script to download, {} pictures.'.format(CURL_PRINT_COUNT), file=sys.stderr)
 
