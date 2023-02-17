@@ -2,15 +2,8 @@ import os, wb.context as context
 from wb.context import opts, getjson
 from wb.utils import *
 
-def jasonize(html):
-	m = re.search(r'var \$render_data = \[(.+)\]\[0\] \|\| {};', html, flags=re.DOTALL)
-	if m: return m[1]
-	else:
-		log('ERROR', 'Cannot find json in single weibo, try to set cookie. \n{}', html)
-		return
-
-def checkjson(api):
-	log('DEBUG', 'weibo api {} parsing...', api)
+def checkjson(api, *, info=None):
+	log('DEBUG', '{}weibo api {} parsing...', '[{}]'.format(info) if info else '', api)
 	retried = 0
 	while retried < 5:
 		r = getjson(api)
@@ -21,7 +14,6 @@ def checkjson(api):
 	if retried >= 5:
 		log('ERROR', '{} fetch or parse failed after retries fully.', api)
 		return
-
 
 def listpics(pics, dirname, created, bid):
 	count = 0
@@ -65,11 +57,14 @@ def listpics(pics, dirname, created, bid):
 		if context.checklogf: context.checklogf.writelines([pic['pid'], '\n'])
 	return count
 
-def list(userid, after): # defalt yesterday to now
+listed_users = 0
+def list(userid, after, total): # defalt yesterday to now
+	global listed_users
+	listed_users+=1
 	count = 0
 	since_id = ''
 	while (True):
-		data = checkjson(context.URL_WB_LIST.format(userid, since_id))
+		data = checkjson(context.URL_WB_LIST.format(userid, since_id), info='{}/{}'.format(listed_users, total))
 		if not data: return count
 		dirname = ''
 		for card in data['cards']:
@@ -89,9 +84,8 @@ def list(userid, after): # defalt yesterday to now
 
 			if mblog['pic_num'] <= 9: pics = mblog['pics']
 			else:
-				# https://m.weibo.cn/detail/4850366267002849 or https://m.weibo.cn/status/{}
-				status = getjson(card['scheme'], jasonize=lambda r: jasonize(r))
-				pics = status['status']['pics'] if status else mblog['pics']
+				data = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
+				pics = (data if data else mblog)['pics']
 			count += listpics(pics, dirname, created, mblog['bid'])
 		data = data['cardlistInfo']
 		if not 'since_id' in data:
@@ -99,15 +93,25 @@ def list(userid, after): # defalt yesterday to now
 			return count
 		since_id = data['since_id']
 
+def listall():
+	since = parsesince()
+	sum = 0
+	uids = parseuids()
+	total = len(uids)
+	for uid in uids:
+		sum += list(uid, since, total)
+	log('INFO', 'Whole parsing finished, {} pictures found as CURL cmd.', sum)
+	
+
 def follows(): # defalt yesterday to now
-	count = 0
+	count_fo = 0
 	page = 1
 	fos = []
 	try:
 		while (True):
 			data = checkjson(context.URL_FOLLOWERS.format(page))
 			if not data: return fos
-			count = 0
+			count_fo = 0
 			for cards in data['cards']:
 				if not 'card_group' in cards: continue
 				for card in cards['card_group']:
@@ -115,8 +119,8 @@ def follows(): # defalt yesterday to now
 						continue
 					# 2310930026_1_ _2253751997[15:]
 					fos += [{card['user']['id']:  card['user']['screen_name']}]
-					count += 1
-			log('DEBUG', '......{} followers found', count)
+					count_fo += 1
+			log('DEBUG', '......{} followers found', count_fo)
 			page = data['cardlistInfo']['page']
 			if not page: return fos
 	finally:

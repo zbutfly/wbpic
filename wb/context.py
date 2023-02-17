@@ -2,7 +2,9 @@ import os, sys, time, random, json, pyjson5, requests
 from wb.utils import log, httpget, session, WBPIC_DIR
 
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
-URL_WB_ITEM = 'https://m.weibo.cn/detail/{}'
+# https://m.weibo.cn/detail/4850366267002849 or https://m.weibo.cn/status/{}
+# https://m.weibo.cn/statuses/show?id={mblog[bid]}	MtjjJhg2n JSON
+URL_WB_ITEM = 'https://m.weibo.cn/statuses/show?id={}'
 URL_FOLLOWERS = 'https://m.weibo.cn/api/container/getIndex?containerid=231093_-_selffollowed&page={}'
 
 opts = {}
@@ -35,9 +37,8 @@ _HTTP_SLEEP_SECS = opts.get('interval', 0.4)
 _RETRY_MAX = opts.get('retry', 3)
 _HTTP_HEADERS_AUTH = opts.get('headers_auth')
 
-def getjson(url, *, jasonize=None):
+def getjson(url):
 	response = httpget(url, _HTTP_HEADERS_AUTH, _HTTP_SLEEP_SECS, _RETRY_MAX)
-	if jasonize: response = jasonize(response)
 	try:
 		result = pyjson5.loads(response)
 		if result: return result

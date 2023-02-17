@@ -1,6 +1,6 @@
 import json, pyjson5
 from wb.context import opts, finalize
-from wb.parser import parsesince, parseuids, list, follows
+from wb.parser import listall, follows
 from wb.utils import log
 
 ## TODO
@@ -9,16 +9,9 @@ from wb.utils import log
 # 3. Live Video换成图片
 # 4. HTTP 418 反爬虫等待重试
 
-def __main__():
-	since = parsesince()
-	sum = 0
-	for uid in parseuids():
-		sum += list(uid, since)
-	log('INFO', 'Whole parsing finished, {} pictures found as CURL cmd.', sum)
-
 try:
 	# if len(sys.argv) == 2 and
-	__main__()
+	listall()
 	# print(json.dumps(follows(), indent=2, ensure_ascii=False))
 finally:
 	finalize()
