@@ -3,7 +3,7 @@ from wb.context import opts, getjson
 from wb.utils import *
 
 def checkjson(api, *, info=None):
-	log('DEBUG', '{}weibo api {} parsing...', '[{}]'.format(info) if info else '', api)
+	log('INFO' if info else 'DEBUG', '{}weibo api {} parsing...', '[{}]'.format(info) if info else '', api)
 	retried = 0
 	while retried < 5:
 		r = getjson(api)
@@ -15,6 +15,10 @@ def checkjson(api, *, info=None):
 		log('ERROR', '{} fetch or parse failed after retries fully.', api)
 		return
 
+minw = opts.get('min_dimension', 360)
+minh = opts.get('min_dimension', 360)
+notsmall = lambda w, h: w < minw or h <= minh or w + h < 1600
+
 def listpics(pics, dirname, created, bid):
 	count = 0
 	for pi in range(0, len(pics)):
@@ -24,16 +28,17 @@ def listpics(pics, dirname, created, bid):
 			try:
 				pic = pics[str(pi)]
 			except:
-				log('WARN', '{}/{}[{}] at {} is live video, ignored {}', dirname, bid, pi, created, pic['large']['url'])
+				log('WARN', '{}/{}-{}-{} is live video, ignored {}', dirname, created.strftime('%Y%m%d_%H%M%S'), bid, pi, pic['large']['url'])
 				continue
 
 		ext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
-		if ext.lower() == '.gif':
-			log('WARN', '{}/{}[{}] at {} is gif, ignored {}', dirname, bid, pi, created, pic['large']['url'])
-			continue
 		zzx = pic['large']['url'].startswith('https://zzx.')
 		if (zzx): ext = '[zzx]' + ext
 		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi, pic['pid'], ext)
+		if ext.lower() == '.gif':
+			log('WARN', '{}/{} is is gif, ignored {}', dirname, filename, pic['large']['url'])
+			# log('WARN', '{}/{}[{}] at {} is gif, ignored {}', dirname, bid, pi, created, pic['large']['url'])
+			continue
 		img = {
 			'id': pic['pid'],
 			'url': pic['large']['url'],
@@ -42,8 +47,8 @@ def listpics(pics, dirname, created, bid):
 			'dirname': dirname,
 			'filename': filename
 		}
-		if img['width'] <= opts.get('min_dimension', 360) or img['height'] <= opts.get('min_dimension', 360):
-			log('WARN', '{}/{}[{}] at {} is too small, ignored {}', dirname, bid, pi, created, pic['large']['url'])
+		if notsmall(img['width'], img['height']):
+			log('WARN', '{}/{} dimension {}:{} too small and ignored {}', dirname, filename, img['width'], img['height'], pic['large']['url'])
 			continue
 		if pic['pid'] in context.checkpids:
 			log('DEBUG', 'ignore checked: {}\{} ', dirname, filename)
@@ -59,16 +64,18 @@ def listpics(pics, dirname, created, bid):
 		if context.checklogf: context.checklogf.writelines([pic['pid'], '\n'])
 	return count
 
-listed_users = 0
+count_listed = 0
 def list(userid, after, total): # defalt yesterday to now
-	global listed_users
-	listed_users+=1
+	global count_listed
+	count_listed+=1
 	count = 0
 	since_id = ''
+	dirname = None
 	while (True):
-		data = checkjson(context.URL_WB_LIST.format(userid, since_id), info='{}/{}'.format(listed_users, total))
-		if not data: return count
-		dirname = ''
+		data = checkjson(context.URL_WB_LIST.format(userid, since_id), info='{}/{}{}'.format(count_listed, total, ' @{}'.format(dirname) if dirname else ''))
+		if not data: 
+			log('WARN', '{} fetched but no data, {} pictures found.', dirname, count)
+			return count
 		for card in data['cards']:
 			if not 'mblog' in card or card['card_type'] != 9:
 				continue
@@ -76,14 +83,13 @@ def list(userid, after, total): # defalt yesterday to now
 			if not 'pics' in mblog:
 				continue
 			newdir = normalizedir(mblog)
-			if dirname == '': dirname = newdir
+			if not dirname: dirname = newdir
 			elif dirname != newdir: log('WARN', 'diff user, existed {}, found {}', dirname, newdir)
 
 			created = parseTime(mblog['created_at'])
 			if created.date() < after:
-				log('DEBUG', '{} exceed on {}, {} pictures found and should be curl',  dirname, created.date(), count)
+				log('INFO', '{} exceed on {}, {} pictures found.',  dirname, created.date(), count)
 				return count
-
 			if mblog['pic_num'] <= 9: pics = mblog['pics']
 			else:
 				datamore = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
@@ -91,7 +97,7 @@ def list(userid, after, total): # defalt yesterday to now
 			count += listpics(pics, dirname, created, mblog['bid'])
 		data = data['cardlistInfo']
 		if not 'since_id' in data:
-			log('DEBUG', '{} finished whole weibo history.', dirname)
+			log('INFO', '{} finished whole weibo history, {} pictures found.', dirname, count)
 			return count
 		since_id = data['since_id']
 

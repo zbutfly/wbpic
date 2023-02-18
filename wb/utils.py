@@ -1,6 +1,6 @@
-import sys, os, time, calendar, datetime, dateutil, random, re, pyjson5, requests, shutil, copy
+import sys, os, time, calendar, datetime, dateutil, math, random, re, pyjson5, requests, shutil, copy
 from colorama import Fore as fcolor
-from hurry.filesize import size
+# from hurry.filesize import bsize
 
 WBPIC_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 
@@ -16,11 +16,60 @@ _LEVEL_COLORS = {
 	'ERROR': fcolor.RED
 }
 
+_LEVEL_GRADE = {
+	'TODO': 99,
+	'TRACE': -2,
+	'DEBUG': -1,
+	'INFO': 0,
+	'WARN': 1,
+	'ERROR': 2
+}
+
+_LOG_LEVEL = None
+def loglevel(level):
+	global _LOG_LEVEL
+	_LOG_LEVEL = level.upper()
+
 def log(level, format, *vars):
+	if _LOG_LEVEL and _LEVEL_GRADE[level.upper()] < _LEVEL_GRADE[_LOG_LEVEL.upper()]:
+		return
 	level = level if level else 'INFO'
-	levcolor = _LEVEL_COLORS.get(level.upper())
+	levcolor = _LEVEL_COLORS[level.upper()]
 	msg = '{} [{}] '.format(_c(fcolor.BLUE, 'REM'), _c(levcolor, level)) + _c(levcolor, format)
 	print(msg.format(*vars), file=sys.stderr)
+
+BYTE_NAMES = (
+	("B", 1), 
+	("KB", math.pow(1024, 1)),
+	("MB", math.pow(1024, 2)),
+	("GB", math.pow(1024, 3)),
+	("TB", math.pow(1024, 4)),
+	("PB", math.pow(1024, 5)),
+	("EB", math.pow(1024, 6)),
+	("ZB", math.pow(1024, 7)),
+	("YB", math.pow(1024, 8))
+)
+
+def roundreserve(x, n):
+	i = math.log10(x)
+	r = round(x, -int(math.floor(i)) + (n - 1))
+	return int(r) if i >= n - 1 else r
+	# i = int(math.log10(x))
+	# r = n - i
+	# if x >= 1: r -= 1
+	# r = math.pow(10, r)
+	# r = round(x * r) / r
+	# return int(r) if i >= n - 1 else r
+
+def bsize(bytes):
+	if bytes == 0:
+		return "0B"
+	i = int(math.floor(math.log(bytes, 1024)))
+	n = BYTE_NAMES[i]
+	# p = math.pow(1024, i)
+	s = roundreserve(bytes / n[1], 3)
+	return "%s%s" % (s, n[0])
+
 
 # created_at: "Sun Dec 25 00:54:56 +0800 2022"
 _MONS = list(calendar.month_abbr)
@@ -109,23 +158,22 @@ class Fetcher(object):
 			log('ERROR', '{} invalid {}, failed {}', self.file_path, r, self.url)
 			return
 		if ignoring and ignoring(size_expected):
-			log('WARN', '{} too small [{}], ignored {}', self.file_path, size(size_expected), self.url)
+			log('WARN', '{} too small [{}], ignored {}', self.file_path, bsize(size_expected), self.url)
 			return
 		size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
 		if size_curr > size_expected:
-			log('WARN', '{} current size {} exceed expected {}, ignored {}', self.file_path, size(size_curr), size(size_expected), self.url)
+			log('WARN', '{} current size {} exceed expected {}, ignored {}', self.file_path, bsize(size_curr), bsize(size_expected), self.url)
 			return	
 		if size_curr == size_expected:
-			log('TRACE', '{} existed and size {} match, ignore {}', self.file_path, size(size_curr), self.url)
+			log('TRACE', '{} existed and size {} match, ignore {}', self.file_path, bsize(size_curr), self.url)
 			return
 		size_needs = size_expected - size_curr
 		try:
 			while size_curr < size_expected:
 				if size_curr == 0:
-					msg = "%s total %s fetching..." % (self.file_path, size(size_expected))
+					log('DEBUG', "%s total %s fetching..." % (self.file_path, bsize(size_expected)))
 				else:
-					msg = "%s total %d and existed %d, %2.2f%% progressing..." % (self.file_path, size(size_expected), size(size_curr), 100 * size_curr / size_expected)
-				log('DEBUG', msg)
+					log('INFO', "%s total %s and existed %s, resuming from %2.2f%%..." % (self.file_path, bsize(size_expected), bsize(size_curr), 100 * size_curr / size_expected))
 
 				if (size_curr > 0): self.headers['Range'] = 'bytes=%d-' % size_curr
 				try:
@@ -137,4 +185,9 @@ class Fetcher(object):
 					size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
 		finally:
 			os.utime(self.file_path, (int(self.created.timestamp()), int(self.created.timestamp())))
-			log('DEBUG', '{} fetched finished, {} bytes this time and {} bytes total from {}', self.file_path, size(size_needs), size(size_curr), self.url)
+			extra = 'total: {}'.format(bsize(size_expected), bsize(size_curr))
+			if size_needs > 0 or size_curr != size_expected: 
+				if size_needs > 0: extra += '/need: {}'.format(bsize(size_needs))
+				if size_curr != size_expected: extra += '/current: {}'.format(bsize(size_curr))
+				log('INFO', '{} fetching (resuming) finished from {}, {}', self.file_path, self.url, extra)	
+			else: log('DEBUG', '{} fetching (whole) finished from {}, {}', self.file_path, self.url, extra)

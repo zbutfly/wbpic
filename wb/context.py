@@ -1,5 +1,5 @@
 import os, sys, time, random, json, pyjson5, requests
-from wb.utils import log, httpget, session, WBPIC_DIR
+from wb.utils import log, httpget, session, WBPIC_DIR, loglevel
 
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
 # https://m.weibo.cn/detail/4850366267002849 or https://m.weibo.cn/status/{}
@@ -10,6 +10,7 @@ URL_FOLLOWERS = 'https://m.weibo.cn/api/container/getIndex?containerid=231093_-_
 opts = {}
 with open(WBPIC_DIR + os.sep + 'wbpic-opts.json') as f:
 	opts = pyjson5.load(f)
+if 'log_level' in opts: loglevel(opts['log_level'])
 headers_pics_curl = ' -x ' + opts['proxy'] if 'proxy' in opts else ''
 for n in opts['headers_pics']:
 	headers_pics_curl = headers_pics_curl + ' -H "{}: {}"'.format(n, opts['headers_pics'][n])
