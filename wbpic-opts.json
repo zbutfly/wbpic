@@ -1,6 +1,9 @@
 {
 	"proxy": "", // "sys" (default), "http(s)://user:pass@host:port", "socks5://user:pass@host:port"
 	"basedir": "wbpics",
+	"interval": 0.4,
+	"retry": 3,
+	// "checking": true,
 	"headers_pics": {
 		"User-Agent": "Mozilla/5.0 (Linux; Android 9; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.80 Mobile Safari/537.36",
 		"Accept": "image/avif,image/webp,*/*",

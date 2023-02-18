@@ -31,8 +31,8 @@ def listpics(pics, dirname, created, bid):
 		if ext.lower() == '.gif':
 			log('WARN', '{}/{}[{}] at {} is gif, ignored {}', dirname, bid, pi, created, pic['large']['url'])
 			continue
-		if (pic['large']['url'].startswith('https://zzx.')):
-			ext = '[zzx]' + ext
+		zzx = pic['large']['url'].startswith('https://zzx.')
+		if (zzx): ext = '[zzx]' + ext
 		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi, pic['pid'], ext)
 		img = {
 			'id': pic['pid'],
@@ -52,7 +52,9 @@ def listpics(pics, dirname, created, bid):
 		if not os.path.isdir(dirn):
 			os.makedirs(dirn, exist_ok=True)
 		# TODO
-		print(context.CURL_CMD.format(img['url'], dirn + os.sep + filename))
+		fetcher = Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx)
+		fetcher.start(ignoring=lambda s: s < 10240 or (not zzx and s < 51200))
+		# print(context.CURL_CMD.format(img['url'], dirn + os.sep + filename))
 		count += 1
 		if context.checklogf: context.checklogf.writelines([pic['pid'], '\n'])
 	return count
@@ -84,8 +86,8 @@ def list(userid, after, total): # defalt yesterday to now
 
 			if mblog['pic_num'] <= 9: pics = mblog['pics']
 			else:
-				data = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
-				pics = (data if data else mblog)['pics']
+				datamore = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
+				pics = (datamore if datamore else mblog)['pics']
 			count += listpics(pics, dirname, created, mblog['bid'])
 		data = data['cardlistInfo']
 		if not 'since_id' in data:
