@@ -102,10 +102,11 @@ def parsesince():
 def parseuids():
 	idsarg = sys.argv[2:]
 	if len(idsarg) > 0:
-		return [eval(i) for i in idsarg]
+		if len(idsarg) == 1 and idsarg[0].startswith('@'): 
+			with open(idsarg[0][1:]) as f: return pyjson5.load(f)
+		else: return [eval(i) for i in idsarg]
 	else:
-		with open(WBPIC_DIR + os.sep + 'wbpic-uids.json') as f:
-			return pyjson5.load(f)
+		with open(WBPIC_DIR + os.sep + 'wbpic-uids.json') as f: return pyjson5.load(f)
 
 session = requests.Session()
 def httpget(target, headers, retry, interval):
@@ -167,7 +168,7 @@ class Fetcher(object):
 		if size_curr == size_expected:
 			log('TRACE', '{} existed and size {} match, ignore {}', self.file_path, bsize(size_curr), self.url)
 			return
-		size_needs = size_expected - size_curr
+		size_needs = size_expected - size_curr if size_curr > 0 else -1
 		try:
 			while size_curr < size_expected:
 				if size_curr == 0:
