@@ -72,9 +72,10 @@ def list(userid, after, total): # defalt yesterday to now
 	since_id = ''
 	dirname = None
 	while (True):
-		data = checkjson(context.URL_WB_LIST.format(userid, since_id), info='{}/{}{}'.format(count_listed, total, ' @{}'.format(dirname) if dirname else ''))
+		info = '{}/{}'.format(count_listed, total)
+		data = checkjson(context.URL_WB_LIST.format(userid, since_id), info=info)
 		if not data: 
-			log('WARN', '{} fetched but no data, {} pictures found.', dirname, count)
+			log('WARN', '[{}]{} fetched but no data, {} pictures found.', info, dirname, count)
 			return count
 		for card in data['cards']:
 			if not 'mblog' in card or card['card_type'] != 9:
@@ -88,7 +89,7 @@ def list(userid, after, total): # defalt yesterday to now
 
 			created = parseTime(mblog['created_at'])
 			if created.date() < after:
-				log('INFO', '{} exceed on {}, {} pictures found.',  dirname, created.date(), count)
+				log('INFO' if count > 0 else 'DEBUG', '[{}]{} exceed on {}, {} pictures found.',  info, dirname, created.date(), count)
 				return count
 			if mblog['pic_num'] <= 9: pics = mblog['pics']
 			else:
@@ -97,19 +98,34 @@ def list(userid, after, total): # defalt yesterday to now
 			count += listpics(pics, dirname, created, mblog['bid'])
 		data = data['cardlistInfo']
 		if not 'since_id' in data:
-			log('INFO', '{} finished whole weibo history, {} pictures found.', dirname, count)
+			log('INFO' if count > 0 else 'DEBUG', '[{}]{} finished whole weibo history, {} pictures found.', info, dirname, count)
 			return count
 		since_id = data['since_id']
 
 def listall():
-	since = parsesince()
 	sum = 0
-	uids = parseuids()
-	total = len(uids)
-	for uid in uids:
-		sum += list(uid, since, total)
-	log('INFO', 'Whole parsing finished, {} pictures found as CURL cmd.', sum)
+	if len(sys.argv) == 2 and sys.argv[1].startswith('#'): sum = list1(sys.argv[1][1:])
+	else:
+		since = parsesince()
+		uids = parseuids()
+		total = len(uids)
+		for uid in uids:
+			sum += list(uid, since, total)
+	log('INFO', 'Whole parsing finished, {} pictures found.', sum)
 	
+def list1(bid):
+	url = context.URL_WB_ITEM.format(bid)
+	data = checkjson(url)
+	if not data or not 'pics' in data: 
+		log('WARN', '{} fetched {} but no data.', dirname, url)
+		return 0
+	dirname = normalizedir(data)
+	pics = data['pics']
+	mid = data['mid']
+	created = parseTime(data['created_at'])
+	count = listpics(pics, dirname, created, bid)
+	log('INFO', '{} fetched, {} pictures found {}\n\thttps://weibo.com/{}/{}\n\thttps://weibo.com/detail/{}.', dirname, count, url, data['user']['id'], bid, mid)
+	return count
 
 def follows(): # defalt yesterday to now
 	count_fo = 0
