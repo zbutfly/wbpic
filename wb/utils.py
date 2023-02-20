@@ -123,9 +123,9 @@ def httpget(target, headers, retry, interval):
 					log('ERROR', '{} fetch incorrectly return {}, {}', target, r, r.text)
 					return
 				return r.text
-		except Exception as e:
-			log('ERROR', '{} failed {}', target, e) # ', result {}.\n{}', r, r.text
-			return
+		except Exception as e: 
+			log('ERROR', '{} failed {}', target, e) # ', result {}.\n{}', r, r.text 
+			return 
 		finally:
 			time.sleep(abs(random.gauss(interval, interval/2.5)))
 	log('ERROR', '{} failed after retries {}', target, retried)
@@ -153,8 +153,12 @@ class Fetcher(object):
 		return dateutil.parser.parse(last_modified) if last_modified else None
 
 	def start(self, *, ignoring=None):
-		with  session.get(self.url, stream=True) as r:
-			size_expected = int(r.headers['Content-Length'])
+		try:
+			with session.get(self.url, stream=True, headers=self.headers) as r:
+				size_expected = int(r.headers['Content-Length'])
+		except Exception as e:
+			log('ERROR', '{} fetching failed {} for erro {}.', self.file_path, self.url, e)
+			log('ERROR', '{} invalid {}, failed {}', self.file_path, r, self.url)
 		if r.status_code < 200 or r.status_code > 299:
 			log('ERROR', '{} invalid {}, failed {}', self.file_path, r, self.url)
 			return
@@ -181,7 +185,7 @@ class Fetcher(object):
 					with session.get(self.url, stream=True, headers=self.headers) as r, open(self.file_path, "ab") as f:
 						shutil.copyfileobj(r.raw, f)
 				except Exception as e:
-					log('ERROR', '{} fetching failed to {} for erro {}, \n\ttotal {} bytes and {} bytes fetched.', self.url, self.file_path, e, size_expected, size_curr)
+					log('ERROR', '{} fetching failed {} for error {}, \n\ttotal {} bytes and {} bytes fetched.', self.file_path, self.url, e, size_expected, size_curr)
 				finally:
 					size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
 		finally:
