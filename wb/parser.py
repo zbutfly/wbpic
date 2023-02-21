@@ -65,7 +65,7 @@ def listpics(pics, dirname, created, bid):
 	return count
 
 count_listed = 0
-def list(userid, after, total): # defalt yesterday to now
+def list(userid, after, total, *, target=None): # defalt yesterday to now
 	global count_listed
 	count_listed+=1
 	count = 0
@@ -83,7 +83,7 @@ def list(userid, after, total): # defalt yesterday to now
 			mblog = card['mblog']
 			if not 'pics' in mblog:
 				continue
-			newdir = normalizedir(mblog)
+			newdir = target if target else normalizedir(mblog)
 			if not dirname: dirname = newdir
 			elif dirname != newdir: log('WARN', 'diff user, existed {}, found {}', dirname, newdir)
 

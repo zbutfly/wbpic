@@ -99,14 +99,32 @@ def parsesince():
 	log('INFO', 'since: {}', since)
 	return since
 
+IGNORE_CATS = ['[###fav]', '[##devels]', '[##importing]', '[##imports]']
+
+def parsedirs(basedir):
+	uids = {}
+	for cats in [f.path for f in os.scandir(basedir) if f.is_dir() and not f.name in IGNORE_CATS and f.name.startswith('[')]:
+		for entry in [ff for ff in os.scandir(cats) if ff.is_dir()]:
+			m = re.search(r'#\d{10}', entry.name, flags=re.DOTALL)
+			if not m: continue
+			for tag in m[1:]:
+				uid = tag[1:]
+				if uid in uids: log('ERROR', 'duplicated userid {} tag in {} and {}', uid, entry.path, uids[uid])
+				else:
+					uids[uids] = entry.path
+	return uids
+
 def parseuids():
 	idsarg = sys.argv[2:]
 	if len(idsarg) > 0:
 		if len(idsarg) == 1 and idsarg[0].startswith('@'): 
-			with open(idsarg[0][1:]) as f: return pyjson5.load(f)
+			if not idsarg[0].endswith(os.sep):
+				with open(idsarg[0][1:]) as f: return pyjson5.load(f)
+			else:
+				return parsedirs(idsarg[0][1:])
 		else: return [eval(i) for i in idsarg]
 	else:
-		with open(WBPIC_DIR + os.sep + 'wbpic-uids.json') as f: return pyjson5.load(f)
+		with open(WBPIC_DIR + os.sep + 'wbpic-uids.json', encoding='UTF-8') as f: return pyjson5.load(f)
 
 session = requests.Session()
 def httpget(target, headers, retry, interval):

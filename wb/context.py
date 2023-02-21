@@ -1,4 +1,4 @@
-import os, sys, time, random, json, pyjson5, requests
+import os, pyjson5
 from wb.utils import log, httpget, session, WBPIC_DIR, loglevel
 
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'

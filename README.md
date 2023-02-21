@@ -11,11 +11,17 @@
 
 ## 使用
 
+### 初始化
+
+~~~bash
+python -m pip install --upgrade pip requests python-dateutil pyjson5 colorama
+~~~
+
+### 命令行参数
+
 ~~~bash
 python wbpic.py SINCE UID UID UID ...
 ~~~
-
-命令行参数：
 
 - 无参数：拉取昨日0点开始，默认配置文件中用户列表
 - SINCE: 
@@ -34,9 +40,11 @@ python wbpic.py SINCE UID UID UID ...
 
 ## 微博接口
 
+记录接口分析
+
 ### 手机版页面
 
-＞ 可以使用`Firefox`的[Add custom search engine](https://addons.mozilla.org/en-US/firefox/addon/add-custom-search-engine/)或类似插件实现快速微博访问。
+可以使用`Firefox`的[Add custom search engine](https://addons.mozilla.org/en-US/firefox/addon/add-custom-search-engine/)或类似插件实现快速微博访问。
 
 - 全部微博页面		`https://m.weibo.cn/p/230413{uid}_-_WEIBO_SECOND_PROFILE_WEIBO&page={pageno}`
 - 原创微博页面		`https://m.weibo.cn/p/230413{uid}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={bid}`
