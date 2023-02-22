@@ -24,12 +24,13 @@ python wbpic.py SINCE UID UID UID ...
 ~~~
 
 - 无参数：拉取昨日0点开始，默认配置文件中用户列表
+- 单条模式：`python wbpic.py #mid`
 - SINCE: 
 	- 数字：天数，拉取几天前（0点开始）
 	- 日期：20030101
 	- `''`：空字符串（需要引号）表示拉取所有微博
 - UIDs：
-	- 空：`wbpic-uids.json`
+	- 空：读取`conf/wbpic-uids.json`
 	- 参数列表：多个用户ID
 	- @文件名：指定`uids.json`文件
 	- @目录名：图片仓库根目录，用户信息在仓库中二级子目录名上
@@ -37,6 +38,18 @@ python wbpic.py SINCE UID UID UID ...
 		- 二级子目录名为用户名
 		- 二级子目录名中，`#\d{10}`为用户ID，可以带多个
 		- 二级子目录名中，`#xxxx`为标签，用于分类用户
+
+### 配置文件
+
+默认配置文件在`conf/`目录中。
+
+#### wbpic-opts.json
+
+默认选项，内容直接阅读。
+
+#### wbpic-uids.json
+
+用户ID List `[]`，每项为一个10位数字。
 
 ## 微博接口
 
@@ -73,3 +86,10 @@ python wbpic.py SINCE UID UID UID ...
 },
 ~~~
 - 单条微博	`https://m.weibo.cn/statuses/show?id={mid}`
+
+## 后继TODO
+
+1. VIP图片分析
+2. VIP首图403问题
+3. Live Video转换成图片
+4. HTTP 418反爬虫等待重试

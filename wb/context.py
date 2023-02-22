@@ -8,7 +8,7 @@ URL_WB_ITEM = 'https://m.weibo.cn/statuses/show?id={}'
 URL_FOLLOWERS = 'https://m.weibo.cn/api/container/getIndex?containerid=231093_-_selffollowed&page={}'
 
 opts = {}
-with open(WBPIC_DIR + os.sep + 'wbpic-opts.json') as f:
+with open(WBPIC_DIR + os.sep + 'conf' + os.sep + 'wbpic-opts.json') as f:
 	opts = pyjson5.load(f)
 if 'log_level' in opts: loglevel(opts['log_level'])
 headers_pics_curl = ' -x ' + opts['proxy'] if 'proxy' in opts else ''

@@ -124,7 +124,7 @@ def parseuids():
 				return parsedirs(idsarg[0][1:])
 		else: return [eval(i) for i in idsarg]
 	else:
-		with open(WBPIC_DIR + os.sep + 'wbpic-uids.json', encoding='UTF-8') as f: return pyjson5.load(f)
+		with open(WBPIC_DIR + os.sep + os.sep + 'wbpic-uids.json', encoding='UTF-8') as f: return pyjson5.load(f)
 
 session = requests.Session()
 def httpget(target, headers, retry, interval):
