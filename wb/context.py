@@ -5,6 +5,7 @@ URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_
 # https://m.weibo.cn/detail/4850366267002849 or https://m.weibo.cn/status/{}
 # https://m.weibo.cn/statuses/show?id={mblog[bid]}	MtjjJhg2n JSON
 URL_WB_ITEM = 'https://m.weibo.cn/statuses/show?id={}'
+URL_WB_ITEM_HIS = 'https://m.weibo.cn/api/container/getIndex?containerid=231440_-_{}'
 URL_FOLLOWERS = 'https://m.weibo.cn/api/container/getIndex?containerid=231093_-_selffollowed&page={}'
 
 opts = {}

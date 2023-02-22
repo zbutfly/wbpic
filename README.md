@@ -86,6 +86,7 @@ python wbpic.py SINCE UID UID UID ...
 },
 ~~~
 - 单条微博	`https://m.weibo.cn/statuses/show?id={mid}`
+- 单条微博编辑历史	`https://m.weibo.cn/api/container/getIndex?containerid=231440_-_{mid}`
 
 ## 后继TODO
 

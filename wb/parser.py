@@ -5,7 +5,7 @@ from wb.utils import *
 def checkjson(api, *, info=None):
 	log('INFO' if info else 'DEBUG', '{}weibo api {} parsing...', '[{}]'.format(info) if info else '', api)
 	retried = 0
-	while retried < 5:
+	while retried < 3:
 		r = getjson(api)
 		if r and 1 == r['ok']: return r['data']
 		retried += 1
@@ -64,6 +64,24 @@ def listpics(pics, dirname, created, bid):
 		if context.checklogf: context.checklogf.writelines([pic['pid'], '\n'])
 	return count
 
+def parsepics(mblog):
+	if mblog['pic_num'] <= 9: 
+		pics = mblog['pics']
+	else:
+		datamore = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
+		pics = (datamore if datamore else mblog)['pics']
+	if mblog['edit_count'] > 0: # find all history
+		data = checkjson(context.URL_WB_ITEM_HIS.format(mblog['mid']))
+		for card in data['cards']:
+			for c in card['card_group']:
+				pics += c['mblog']['pics']
+		pics2 = []
+		for p in pics:
+			if not p['pid'] in [p2['pid'] for p2 in pics2]:
+				pics2 += [p]
+		pics = pics2
+	return pics
+
 count_listed = 0
 def list(userid, after, total, *, target=None): # defalt yesterday to now
 	global count_listed
@@ -91,28 +109,14 @@ def list(userid, after, total, *, target=None): # defalt yesterday to now
 			if created.date() < after:
 				log('INFO' if count > 0 else 'DEBUG', '[{}]{} exceed on {}, {} pictures found.',  info, dirname, created.date(), count)
 				return count
-			if mblog['pic_num'] <= 9: pics = mblog['pics']
-			else:
-				datamore = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
-				pics = (datamore if datamore else mblog)['pics']
-			count += listpics(pics, dirname, created, mblog['bid'])
+			count += listpics(parsepics(mblog), dirname, created, mblog['bid'])
+
 		data = data['cardlistInfo']
 		if not 'since_id' in data:
 			log('INFO' if count > 0 else 'DEBUG', '[{}]{} finished whole weibo history, {} pictures found.', info, dirname, count)
 			return count
 		since_id = data['since_id']
 
-def listall():
-	sum = 0
-	if len(sys.argv) == 2 and sys.argv[1].startswith('#'): sum = list1(sys.argv[1][1:])
-	else:
-		since = parsesince()
-		uids = parseuids()
-		total = len(uids)
-		for uid in uids:
-			sum += list(uid, since, total)
-	log('INFO', 'Whole parsing finished, {} pictures found.', sum)
-	
 def list1(bid):
 	url = context.URL_WB_ITEM.format(bid)
 	data = checkjson(url)

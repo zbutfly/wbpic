@@ -99,29 +99,24 @@ def parsesince():
 	log('INFO', 'since: {}', since)
 	return since
 
-IGNORE_CATS = ['[###fav]', '[##devels]', '[##importing]', '[##imports]']
-
-def parsedirs(basedir):
+def parsedirs(basedir, accepting=None):
 	uids = {}
-	for cats in [f.path for f in os.scandir(basedir) if f.is_dir() and not f.name in IGNORE_CATS and f.name.startswith('[')]:
+	for cats in [f.path for f in os.scandir(basedir) if f.is_dir() and (accepting(f.name) if accepting else True)]:
 		for entry in [ff for ff in os.scandir(cats) if ff.is_dir()]:
-			m = re.search(r'#\d{10}', entry.name, flags=re.DOTALL)
-			if not m: continue
-			for tag in m[1:]:
-				uid = tag[1:]
-				if uid in uids: log('ERROR', 'duplicated userid {} tag in {} and {}', uid, entry.path, uids[uid])
-				else:
-					uids[uids] = entry.path
+			m = re.findall(r'#(\d{10})', entry.name) #, flags=re.DOTALL
+			if m:
+				for uid in m:
+					if uid in uids: log('ERROR', 'duplicated userid {} tag in {} and {}', uid, entry.path, uids[uid])
+					else: uids[uid] = entry.path
 	return uids
 
-def parseuids():
-	idsarg = sys.argv[2:]
+def parseuids(idsarg, accepting=None):
 	if len(idsarg) > 0:
 		if len(idsarg) == 1 and idsarg[0].startswith('@'): 
 			if not idsarg[0].endswith(os.sep):
 				with open(idsarg[0][1:]) as f: return pyjson5.load(f)
 			else:
-				return parsedirs(idsarg[0][1:])
+				return parsedirs(idsarg[0][1:], accepting)
 		else: return [eval(i) for i in idsarg]
 	else:
 		with open(WBPIC_DIR + os.sep + os.sep + 'wbpic-uids.json', encoding='UTF-8') as f: return pyjson5.load(f)
