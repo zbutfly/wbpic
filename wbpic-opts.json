@@ -16,22 +16,21 @@
 		"Cache-Control": "no-cache"
 	},
 	"headers_auth": {
-		"Accept": "*/*",
-		"Referer": "https://m.weibo.cn",
-		"X-Requested-With": "XMLHttpRequest",
-		"MWeibo-Pwa": "1",
-		"X-XSRF-TOKEN": "11d6bf",
+		"Cookie": "SUB=",
 		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/111.0",
+		"Accept": "*/*",
 		"Accept-Language": "zh-CN,en-US;q=0.8,en;q=0.5,zh-TW;q=0.3",
 		"Accept-Encoding": "gzip, deflate, br",
 		"DNT": "1",
 		"Connection": "keep-alive",
-		"Pragma": "no-cache",
-		"Cache-Control": "no-cache",
+		"Referer": "https://m.weibo.cn",
 		"Sec-Fetch-Dest": "empty",
 		"Sec-Fetch-Mode": "cors",
 		"Sec-Fetch-Site": "same-origin",
-		"TE": "trailers",
-		"Cookie": ""
+		"Pragma": "no-cache",
+		"Cache-Control": "no-cache",
+		"X-Requested-With": "XMLHttpRequest",
+		"MWeibo-Pwa": "1",
+		"TE": "trailers"
 	}
 }

@@ -1,4 +1,7 @@
-import requests, sys, platform, time, os, json, re, calendar, datetime, math, operator, random
+import json, pyjson5
+from wb.context import opts, finalize
+from wb.parser import parsesince, parseuids, list, follows
+from wb.utils import log
 
 ## TODO
 # 1. VIP图片分析
@@ -6,24 +9,19 @@ import requests, sys, platform, time, os, json, re, calendar, datetime, math, op
 # 3. Live Video换成图片
 # 4. HTTP 418 反爬虫等待重试
 
-## entry url
-# 全部微博		https://m.weibo.cn/p/230413{}_-_WEIBO_SECOND_PROFILE_WEIBO&page={}
-# 原创微博		https://m.weibo.cn/p/230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}
-# 全部微博JSON	https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO&page={}
-URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
-URL_WB_ITEM = 'https://m.weibo.cn/detail/{}'
+def __main__():
+	since = parsesince()
+	sum = 0
+	for uid in parseuids():
+		sum += list(uid, since)
+	log('INFO', 'Whole parsing finished, {} pictures found as CURL cmd.', sum)
 
-
-if platform.system() == 'Windows':
-	if operator.ge(*map(lambda version: list(map(int, version.split('.'))), [platform.version(), '10.0.14393'])):
-		os.system('')
-	else:
-		import colorama
-		colorama.init()
 try:
-	requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
-except:
-	pass
+	# if len(sys.argv) == 2 and
+	__main__()
+	# print(json.dumps(follows(), indent=2, ensure_ascii=False))
+finally:
+	finalize()
 
 WBPIC_DIR = os.path.dirname(os.path.realpath(__file__))
 with open(WBPIC_DIR + os.sep + 'wbpic-opts.json') as f:
