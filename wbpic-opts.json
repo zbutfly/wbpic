@@ -1,0 +1,18 @@
+{
+	"basedir": "..\\wbpics",
+	"proxy": "", // "sys" (default), "http(s)://user:pass@host:port", "socks5://user:pass@host:port"
+	"headers_pics": {
+		"User-Agent": "Mozilla/5.0 (Linux; Android 9; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.80 Mobile Safari/537.36",
+		"Accept": "image/avif,image/webp,*/*",
+		"Accept-Language": "zh-CN,en-US;q=0.8,en;q=0.5,zh-TW;q=0.3",
+		"Accept-Encoding": "gzip, deflate, br",
+		"DNT": "1",
+		"Connection": "keep-alive",
+		"Referer": "https://photo.weibo.com/",
+		"Sec-Fetch-Dest": "image",
+		"Sec-Fetch-Mode": "no-cors",
+		"Sec-Fetch-Site": "cross-site",
+		"Pragma": "no-cache",
+		"Cache-Control": "no-cache"
+	}
+}
