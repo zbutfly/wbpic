@@ -2,17 +2,35 @@ import os, wb.context as context
 from wb.context import opts, getjson
 from wb.utils import *
 
-def checkjson(api, *, info=None):
-	log('INFO' if info else 'DEBUG', '{}weibo api {} parsing...', '[{}]'.format(info) if info else '', api)
+def checkjson(api, retry=3):
+	log('DEBUG', 'weibo api {} parsing...', api)
 	retried = 0
-	while retried < 3:
+	while retried < retry:
 		r = getjson(api)
-		if r and 1 == r['ok']: return r['data']
+		if r and 1 == r['ok']: 
+			if retried > 0: log('INFO', 'api fetching success after {} retries')
+			return r['data']
 		retried += 1
-		log('WARN', '{} retry #{} result not ok: \n\t{}', api, retried, r)
+		# log('WARN', '{} retry #{} result not ok: \n\t{}', api, retried, r)
 		time.sleep(abs(random.gauss(3, 1)))
-	if retried >= 5:
+	if retried >= retry:
 		log('ERROR', '{} fetch or parse failed after retries fully.', api)
+		return
+
+def checkprofile(userid, retry = 3):
+	retried = 0
+	profileurl = context.URL_WB_PROFILE.format(userid)
+	while retried < retry:
+		r = getjson(profileurl)
+		if r and 1 == r['ok']: return r['data']['user']
+		elif 'error' in r and r['error'] == '20003':
+			log('INFO', 'user {} had died-_-'.format(userid))
+			return
+		retried += 1
+		log('WARN', '{} retry #{} result not ok: \n\t{}', profileurl, retried, r)
+		time.sleep(abs(random.gauss(3, 1)))
+	if retried >= retry:
+		log('ERROR', '{} fetch or parse failed after retries fully.', profileurl)
 		return
 
 minw = opts.get('min_dimension', 360)
@@ -53,7 +71,7 @@ def listpics(pics, dirname, created, bid):
 		if pic['pid'] in context.checkpids:
 			log('DEBUG', 'ignore checked: {}\{} ', dirname, filename)
 			continue
-		dirn = opts['basedir'] + os.sep + dirname if ('basedir' in opts) else dirname
+		dirn = context.basedir + os.sep + dirname
 		if not os.path.isdir(dirn):
 			os.makedirs(dirn, exist_ok=True)
 		# TODO
@@ -70,30 +88,24 @@ def parsepics(mblog):
 	else:
 		datamore = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
 		pics = (datamore if datamore else mblog)['pics']
-	if mblog['edit_count'] > 0: # find all history
+	if 'edit_count' in mblog and mblog['edit_count'] > 0: # find all history
 		data = checkjson(context.URL_WB_ITEM_HIS.format(mblog['mid']))
-		for card in data['cards']:
-			for c in card['card_group']:
-				pics += c['mblog']['pics']
-		pics2 = []
-		for p in pics:
-			if not p['pid'] in [p2['pid'] for p2 in pics2]:
-				pics2 += [p]
-		pics = pics2
+		groups = [c['card_group'] for c in data['cards'] if c['card_type'] == 11]
+		his = [c['mblog']['pics'] for cs in groups for c in cs if c['card_type'] == 9 and 'pics' in c['mblog']]
+		pichis = [p for ps in his for p in ps]
+		for p in [p for p in pichis if not p['pid'] in [pp['pid'] for pp in pics]]:
+			pics += [p]
 	return pics
 
-count_listed = 0
-def list(userid, after, total, *, target=None): # defalt yesterday to now
-	global count_listed
-	count_listed+=1
+def list(userid, after, progress, *, dir=None): # defalt yesterday to now
 	count = 0
 	since_id = ''
-	dirname = None
+	if not dir: dir = dirname(checkprofile(userid))
+	log('INFO', '[{}] user dowloading to {} is starting...'.format(progress, dir))
 	while (True):
-		info = '{}/{}'.format(count_listed, total)
-		data = checkjson(context.URL_WB_LIST.format(userid, since_id), info=info)
+		data = checkjson(context.URL_WB_LIST.format(userid, since_id))
 		if not data: 
-			log('WARN', '[{}]{} fetched but no data, {} pictures found.', info, dirname, count)
+			log('WARN', '{} fetched but no data, {} pictures found.', dirname, count)
 			return count
 		for card in data['cards']:
 			if not 'mblog' in card or card['card_type'] != 9:
@@ -101,19 +113,16 @@ def list(userid, after, total, *, target=None): # defalt yesterday to now
 			mblog = card['mblog']
 			if not 'pics' in mblog:
 				continue
-			newdir = target if target else normalizedir(mblog)
-			if not dirname: dirname = newdir
-			elif dirname != newdir: log('WARN', 'diff user, existed {}, found {}', dirname, newdir)
 
 			created = parseTime(mblog['created_at'])
 			if created.date() < after:
-				log('INFO' if count > 0 else 'DEBUG', '[{}]{} exceed on {}, {} pictures found.',  info, dirname, created.date(), count)
+				log('INFO' if count > 0 else 'DEBUG', '[{}] {} exceed on {}, {} pictures found.',  progress, dirname, created.date(), count)
 				return count
 			count += listpics(parsepics(mblog), dirname, created, mblog['bid'])
 
 		data = data['cardlistInfo']
 		if not 'since_id' in data:
-			log('INFO' if count > 0 else 'DEBUG', '[{}]{} finished whole weibo history, {} pictures found.', info, dirname, count)
+			log('INFO' if count > 0 else 'DEBUG', '[{}]{} finished whole weibo history, {} pictures found.', progress, dirname, count)
 			return count
 		since_id = data['since_id']
 
@@ -123,11 +132,11 @@ def list1(bid):
 	if not data or not 'pics' in data: 
 		log('WARN', '{} fetched {} but no data.', dirname, url)
 		return 0
-	dirname = normalizedir(data)
+	dir = dirname(data['user'])
 	pics = data['pics']
 	mid = data['mid']
 	created = parseTime(data['created_at'])
-	count = listpics(pics, dirname, created, bid)
+	count = listpics(pics, dir, created, bid)
 	log('INFO', '{} fetched, {} pictures found {}\n\thttps://weibo.com/{}/{}\n\thttps://weibo.com/detail/{}.', dirname, count, url, data['user']['id'], bid, mid)
 	return count
 

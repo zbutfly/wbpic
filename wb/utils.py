@@ -79,11 +79,11 @@ def parseTime(createdStr):
 	ts = segs[3].split(':')
 	return datetime.datetime(int(segs[5]), _MONS.index(segs[1]), int(segs[2]), int(ts[0]), int(ts[1]), int(ts[2]))
 
-def normalizedir(mblog):
-	nick = mblog['user']['screen_name']
+def dirname(user):
+	nick = user['screen_name']
 	nick = re.sub('^[·_-]+', '', nick)
 	nick = re.sub('[·_-]+$', '', nick)
-	return '{}#{}'.format(nick, mblog['user']['id'])
+	return '{}#{}'.format(nick, user['id'])
 
 def parsesince():
 	if len(sys.argv) <= 1:
@@ -107,7 +107,7 @@ def parsedirs(basedir, accepting=None):
 			if m:
 				for uid in m:
 					if uid in uids: log('ERROR', 'duplicated userid {} tag in {} and {}', uid, entry.path, uids[uid])
-					else: uids[uid] = entry.path
+					else: uids[uid] = entry.path.replace(basedir, '', 1) if entry.path.startswith(basedir) else entry.path
 	return uids
 
 def parseuids(idsarg, accepting=None):

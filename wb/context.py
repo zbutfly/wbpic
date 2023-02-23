@@ -1,6 +1,7 @@
 import os, pyjson5
 from wb.utils import log, httpget, session, WBPIC_DIR, loglevel
 
+URL_WB_PROFILE = 'https://m.weibo.cn/profile/info?uid={}'
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
 # https://m.weibo.cn/detail/4850366267002849 or https://m.weibo.cn/status/{}
 # https://m.weibo.cn/statuses/show?id={mblog[bid]}	MtjjJhg2n JSON
@@ -24,7 +25,7 @@ if not session.trust_env and opts.get('proxy') != '':
 
 checkpids = []
 checklogf = None
-basedir = WBPIC_DIR + os.sep + (opts['basedir'] if 'basedir' in opts else "wbpics")
+basedir = opts['basedir'] if 'basedir' in opts else "wbpics"
 if bool(opts.get('checking', False)):
 	flogname = basedir + os.sep + 'checked.log'
 	if os.path.exists(flogname):
