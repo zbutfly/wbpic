@@ -106,8 +106,9 @@ def parsedirs(basedir, accepting=None):
 			m = re.findall(r'#(\d{10})', entry.name) #, flags=re.DOTALL
 			if m:
 				for uid in m:
-					if uid in uids: log('ERROR', 'duplicated userid {} tag in {} and {}', uid, entry.path, uids[uid])
-					else: uids[uid] = entry.path.replace(basedir, '', 1) if entry.path.startswith(basedir) else entry.path
+					p = entry.path.replace(basedir, '', 1) if entry.path.startswith(basedir) else entry.path
+					if uid in uids: log('ERROR', 'duplicated userid {} tag in {} (use this) and {}', uid, uids[uid], p)
+					else: uids[uid] = p
 	return uids
 
 def parseuids(idsarg, accepting=None):

@@ -11,7 +11,7 @@ try:
 	if len(sys.argv) == 2 and sys.argv[1].startswith('#'): sum = list1(sys.argv[1][1:])
 	else:
 		since = parsesince()
-		uids = parseuids(sys.argv[2:], lambda n: n.startswith('['))
+		uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and not n[1] != '#')
 		total = len(uids)
 		c = 0
 		if isinstance(uids, dict):
