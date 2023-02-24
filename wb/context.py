@@ -23,18 +23,17 @@ session.trust_env = not 'proxy' in opts or opts['proxy'].lower() == 'sys'
 if not session.trust_env and opts.get('proxy') != '':
 	session.proxies.update({"https": opts.get('proxy'), "http": opts.get('proxy')})
 
-checkpids = []
-checklogf = None
 basedir = opts['basedir'] if 'basedir' in opts else "wbpics"
-if bool(opts.get('checking', False)):
-	flogname = basedir + os.sep + 'checked.log'
-	if os.path.exists(flogname):
-		with open(flogname) as checklogf:
-			checkpids = [line.rstrip() for line in checklogf]
-	checklogf = open(flogname, 'a')
 
-def finalize():
-	if checklogf: checklogf.close()
+# def opencheck():
+# 	ids = None
+# 	if not bool(opts.get('checking', False)): return
+# 	flogname = basedir + os.sep + 'checked.log'
+# 	if os.path.exists(flogname):
+# 		with open(flogname) as f:
+# 			ids = [line.rstrip() for line in f]
+# 	return ids, open(flogname, 'a')
+# checkpids, checklogf = opencheck()
 
 _HTTP_SLEEP_SECS = opts.get('interval', 0.4)
 _RETRY_MAX = opts.get('retry', 3)
@@ -48,3 +47,6 @@ def getjson(url):
 		log('ERROR', 'json invalid: {}\n{}', url, response)
 	except Exception as e:
 		log('ERROR', '{} json parse failed:\n{}', url, response)
+
+sum_bytes = 0
+sum_pics = 0

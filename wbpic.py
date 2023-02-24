@@ -1,29 +1,20 @@
-import sys, json
-from wb.context import opts, finalize
-from wb.parser import list, list1, follows
-from wb.utils import log, parsesince, parseuids
+import sys, json, wb.context as ctx
+from wb.parser import listuser, listmblogbid, follows
+from wb.utils import log, parsesince, parseuids, bsize
 
 def followings():
 	print(json.dumps(follows(), indent=2, ensure_ascii=False))
 
-sum = 0
 try:
-	if len(sys.argv) == 2 and sys.argv[1].startswith('#'): sum = list1(sys.argv[1][1:])
+	if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = listmblogbid(sys.argv[1][1:])
 	else:
 		since = parsesince()
-		uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and not n[1] != '#')
+		uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and n[1] != '#')
 		total = len(uids)
 		c = 0
-		if isinstance(uids, dict):
-			for uid, dir in uids.items():
-				c += 1
-				if ('skip' in opts and c <= opts['skip']): continue
-				sum += list(uid, since, '[{}/{}]'.format(c, total), dir=dir)
-		else:
-			for uid in uids:
-				c += 1
-				if ('skip' in opts and c <= opts['skip']): continue
-				sum += list(uid, since, '[{}/{}]'.format(c, total))
+		for uid in uids:
+			c += 1
+			if ('skip' in ctx.opts and c <= ctx.opts['skip']): continue
+			ctx.sum_pics += listuser(uid, since, '[{}/{}]'.format(c, total), uids[uid] if isinstance(uids, dict) else None)
 finally:
-	log('INFO', 'Whole parsing finished, {} pictures found.', sum)
-	finalize()
+	log('INFO', 'Parsing finished {} pictures found and {} fetched.', ctx.sum_pics, bsize(ctx.sum_bytes))

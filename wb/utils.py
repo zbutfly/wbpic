@@ -1,4 +1,5 @@
 import sys, os, time, calendar, datetime, dateutil, math, random, re, pyjson5, requests, shutil, copy
+from timeit import default_timer as timer
 from colorama import Fore as fcolor
 # from hurry.filesize import bsize
 
@@ -35,6 +36,9 @@ def log(level, format, *vars):
 		return
 	level = level if level else 'INFO'
 	levcolor = _LEVEL_COLORS[level.upper()]
+	# if threadpool:
+		# msg = '{} {} [{}] '.format(_c(fcolor.BLUE, 'REM'), threading.current_thread(), _c(levcolor, level)) + _c(levcolor, format)
+	# else:
 	msg = '{} [{}] '.format(_c(fcolor.BLUE, 'REM'), _c(levcolor, level)) + _c(levcolor, format)
 	print(msg.format(*vars), file=sys.stderr)
 
@@ -70,6 +74,9 @@ def bsize(bytes):
 	s = roundreserve(bytes / n[1], 3)
 	return "%s%s" % (s, n[0])
 
+def msec(ms):
+	return float('%.3g' % ms)
+	
 
 # created_at: "Sun Dec 25 00:54:56 +0800 2022"
 _MONS = list(calendar.month_abbr)
@@ -101,7 +108,7 @@ def parsesince():
 
 def parsedirs(basedir, accepting=None):
 	uids = {}
-	for cats in [f.path for f in os.scandir(basedir) if f.is_dir() and (accepting(f.name) if accepting else True)]:
+	for cats in [f.path for f in os.scandir(basedir) if f.is_dir() and (not accepting or accepting(f.name))]:
 		for entry in [ff for ff in os.scandir(cats) if ff.is_dir()]:
 			m = re.findall(r'#(\d{10})', entry.name) #, flags=re.DOTALL
 			if m:
@@ -125,24 +132,27 @@ def parseuids(idsarg, accepting=None):
 session = requests.Session()
 def httpget(target, headers, retry, interval):
 	retried = 0
+	now = timer()
 	while retried < retry:
 		try:
 			with session.get(target, headers = headers, stream = False, verify = False) as r:
+				spent = timer() - now
 				if r.status_code == 418 or r.status_code > 500: # retry only for spam or server-side error
 					retried = retried + 1
 					log('WARN', '{} retry #{}, result {}', target, retried, r)
 					time.sleep(abs(random.gauss(interval*10, interval*4)))
 					continue
 				if r.status_code < 200 and r.status_code >= 300:
-					log('ERROR', '{} fetch incorrectly return {}, {}', target, r, r.text)
+					log('ERROR', '{} fetch incorrectly spent {} ms return {}, {}', target, msec(spent), r, r.text)
 					return
+				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', '{} fetch slow spent {} ms return {}', target, msec(spent), r)
 				return r.text
 		except Exception as e: 
-			log('ERROR', '{} failed {}', target, e) # ', result {}.\n{}', r, r.text 
+			log('ERROR', '{} spent {} ms and failed {}', target, msec(timer() - now), e)
 			return 
 		finally:
 			time.sleep(abs(random.gauss(interval, interval/2.5)))
-	log('ERROR', '{} failed after retries {}', target, retried)
+	log('ERROR', '{} failed after retries {} and spent {} ms.', target, retried, msec(timer() - now))
 
 class Fetcher(object):
 	def __init__(self, url, file_path, created, headers, forcing):
@@ -167,26 +177,28 @@ class Fetcher(object):
 		return dateutil.parser.parse(last_modified) if last_modified else None
 
 	def start(self, *, ignoring=None):
+		now = timer()
 		try:
-			with session.get(self.url, stream=True, headers=self.headers) as r:
+			with session.head(self.url, stream=True, headers=self.headers) as r:
 				size_expected = int(r.headers['Content-Length'])
 		except Exception as e:
-			log('ERROR', '{} fetching failed {} for erro {}.', self.file_path, self.url, e)
-			log('ERROR', '{} invalid {}, failed {}', self.file_path, r, self.url)
+			log('ERROR', '{} HEAD fetching failed {} for erro {}.', self.file_path, self.url, e)
+			log('ERROR', '{} HEAD invalid {}, failed {}', self.file_path, r, self.url)
 		if r.status_code < 200 or r.status_code > 299:
-			log('ERROR', '{} invalid {}, failed {}', self.file_path, r, self.url)
-			return
+			log('ERROR', '{} HEAD invalid {}, failed {}', self.file_path, r, self.url)
+			return 0
 		if ignoring and ignoring(size_expected):
-			log('WARN', '{} too small [{}], ignored {}', self.file_path, bsize(size_expected), self.url)
-			return
-		size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
-		if size_curr > size_expected:
-			log('WARN', '{} current size {} exceed expected {}, ignored {}', self.file_path, bsize(size_curr), bsize(size_expected), self.url)
-			return	
-		if size_curr == size_expected:
-			log('TRACE', '{} existed and size {} match, ignore {}', self.file_path, bsize(size_curr), self.url)
-			return
-		size_needs = size_expected - size_curr if size_curr > 0 else -1
+			log('DEBUG', '{} HEAD too small [{}], ignored {}', self.file_path, bsize(size_expected), self.url)
+			return 0
+		size_begin = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
+		if size_begin > size_expected:
+			log('DEBUG', '{} HEAD current size {} exceed expected {}, ignored {}', self.file_path, bsize(size_begin), bsize(size_expected), self.url)
+			return 0	
+		if size_begin == size_expected:
+			log('TRACE', '{} HEAD existed and size {} match, ignore {}', self.file_path, bsize(size_begin), self.url)
+			return 0 
+		size_needs = size_expected - size_begin if size_begin > 0 else -1
+		size_curr = size_begin
 		try:
 			while size_curr < size_expected:
 				if size_curr == 0:
@@ -203,10 +215,13 @@ class Fetcher(object):
 				finally:
 					size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
 		finally:
+			size_fetched = size_curr - size_begin
 			os.utime(self.file_path, (int(self.created.timestamp()), int(self.created.timestamp())))
-			extra = 'total: {}'.format(bsize(size_expected), bsize(size_curr))
+			spent = timer() - now
+			extra = 'total: {}/fetched: {}'.format(bsize(size_expected), bsize(size_fetched))
 			if size_needs > 0 or size_curr != size_expected: 
 				if size_needs > 0: extra += '/need: {}'.format(bsize(size_needs))
 				if size_curr != size_expected: extra += '/current: {}'.format(bsize(size_curr))
-				log('INFO', '{} fetching (resuming) finished from {}, {}', self.file_path, self.url, extra)	
-			else: log('DEBUG', '{} fetching (whole) finished from {}, {}', self.file_path, self.url, extra)
+				log('INFO', '{} fetching (resuming) finished spent {} ms from {}, {}', self.file_path, msec(spent), self.url, extra)	
+			else: log('DEBUG' if spent < 0.7 else 'INFO', '{} fetching entirely finished, spent {} ms from {}, {}', self.file_path, msec(spent), self.url, extra)
+			return size_fetched

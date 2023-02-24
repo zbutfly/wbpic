@@ -8,13 +8,13 @@ def checkjson(api, retry=3):
 	while retried < retry:
 		r = getjson(api)
 		if r and 1 == r['ok']: 
-			if retried > 0: log('INFO', 'api fetching success after {} retries', retried)
+			if retried > 0: log('INFO', 'api {} fetching success after {}/{} retries', api, retried, retry)
 			return r['data']
 		retried += 1
 		# log('WARN', '{} retry #{} result not ok: \n\t{}', api, retried, r)
 		time.sleep(abs(random.gauss(3, 1)))
 	if retried >= retry:
-		log('ERROR', '{} fetch or parse failed after retries fully.', api)
+		log('ERROR', '{} fetch or parse failed after retries {} fully.', api, retry)
 		return
 
 def checkprofile(userid, retry = 3):
@@ -42,51 +42,6 @@ minw = opts.get('min_dimension', 360)
 minh = opts.get('min_dimension', 360)
 notsmall = lambda w, h: w < minw or h <= minh or w + h < 1600
 
-def listpics(pics, dir, created, bid):
-	count = 0
-	for pi in range(0, len(pics)):
-		try:
-			pic = pics[pi]
-		except:
-			try:
-				pic = pics[str(pi)]
-			except:
-				log('WARN', '{}/{}-{}-{} is live video, ignored {}', dir, created.strftime('%Y%m%d_%H%M%S'), bid, pi, pic['large']['url'])
-				continue
-
-		ext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
-		zzx = pic['large']['url'].startswith('https://zzx.')
-		if (zzx): ext = '[zzx]' + ext
-		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi, pic['pid'], ext)
-		if ext.lower() == '.gif':
-			log('WARN', '{}/{} is is gif, ignored {}', dir, filename, pic['large']['url'])
-			# log('WARN', '{}/{}[{}] at {} is gif, ignored {}', dir, bid, pi, created, pic['large']['url'])
-			continue
-		img = {
-			'id': pic['pid'],
-			'url': pic['large']['url'],
-			'width': int(pic['large']['geo']['width']),
-			'height': int(pic['large']['geo']['height']),
-			'dirname': dir,
-			'filename': filename
-		}
-		if notsmall(img['width'], img['height']):
-			log('WARN', '{}/{} dimension {}:{} too small and ignored {}', dir, filename, img['width'], img['height'], pic['large']['url'])
-			continue
-		if pic['pid'] in context.checkpids:
-			log('DEBUG', 'ignore checked: {}\{} ', dir, filename)
-			continue
-		dirn = context.basedir + os.sep + dir
-		if not os.path.isdir(dirn):
-			os.makedirs(dirn, exist_ok=True)
-		# TODO
-		fetcher = Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx)
-		fetcher.start(ignoring=lambda s: s < 10240 or (not zzx and s < 51200))
-		# print(context.CURL_CMD.format(img['url'], dirn + os.sep + filename))
-		count += 1
-		if context.checklogf: context.checklogf.writelines([pic['pid'], '\n'])
-	return count
-
 def parsepics(mblog):
 	if mblog['pic_num'] <= 9: 
 		pics = mblog['pics']
@@ -102,38 +57,50 @@ def parsepics(mblog):
 			pics += [p]
 	return pics
 
-def list(userid, after, progress, *, dir=None): # defalt yesterday to now
+def listmblog(pics, dir, created, bid):
 	count = 0
-	since_id = ''
-	if dir: log('INFO', '{} user dowloading to {} is starting...'.format(progress, dir))
-	while (True):
-		data = checkjson(context.URL_WB_LIST.format(userid, since_id))
-		if not data: 
-			log('WARN', '{} fetched but no data, {} pictures found.', dir, count)
-			return count
-		for card in data['cards']:
-			if not 'mblog' in card or card['card_type'] != 9:
-				continue
-			mblog = card['mblog']
-			if not 'pics' in mblog:
+	for pi in range(0, len(pics)):
+		try:
+			pic = pics[pi]
+		except:
+			try:
+				pic = pics[str(pi)]
+			except:
+				log('DEBUG', '{}/{}-{}-{} is live video, ignored {}', dir, created.strftime('%Y%m%d_%H%M%S'), bid, pi, pic['large']['url'])
 				continue
 
-			if not dir: 
-				dir = dirname(mblog['user'])
-				if dir: log('INFO', '{} user dowloading to {} is starting...'.format(progress, dir))
-			created = parseTime(mblog['created_at'])
-			if created.date() < after:
-				log('INFO' if count > 0 else 'DEBUG', '[{}] {} exceed on {}, {} pictures found.',  progress, dir, created.date(), count)
-				return count
-			count += listpics(parsepics(mblog), dir, created, mblog['bid'])
+		ext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
+		zzx = pic['large']['url'].startswith('https://zzx.')
+		if (zzx): ext = '[zzx]' + ext
+		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi, pic['pid'], ext)
+		if ext.lower() == '.gif':
+			log('DEBUG', '{}/{} is is gif, ignored {}', dir, filename, pic['large']['url'])
+			# log('DEBUG', '{}/{}[{}] at {} is gif, ignored {}', dir, bid, pi, created, pic['large']['url'])
+			continue
+		img = {
+			'id': pic['pid'],
+			'url': pic['large']['url'],
+			'width': int(pic['large']['geo']['width']),
+			'height': int(pic['large']['geo']['height']),
+			'dirname': dir,
+			'filename': filename
+		}
+		if notsmall(img['width'], img['height']):
+			log('DEBUG', '{}/{} dimension {}:{} too small and ignored {}', dir, filename, img['width'], img['height'], pic['large']['url'])
+			continue
+		# if pic['pid'] in context.checkpids:
+		# 	log('DEBUG', 'ignore checked: {}\{} ', dir, filename)
+		# 	continue
+		dirn = context.basedir + os.sep + dir
+		if not os.path.isdir(dirn):
+			os.makedirs(dirn, exist_ok=True)
+		context.sum_bytes += Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx).start(ignoring=lambda s: s < 10240 or (not zzx and s < 51200))
+		# print(context.CURL_CMD.format(img['url'], dirn + os.sep + filename))
+		count += 1
+		# if context.checklogf: context.checklogf.writelines([pic['pid'], '\n'])
+	return count
 
-		data = data['cardlistInfo']
-		if not 'since_id' in data:
-			log('INFO' if count > 0 else 'DEBUG', '[{}]{} finished whole weibo history, {} pictures found.', progress, dir, count)
-			return count
-		since_id = data['since_id']
-
-def list1(bid):
+def listmblogbid(bid):
 	url = context.URL_WB_ITEM.format(bid)
 	data = checkjson(url)
 	if not data or not 'pics' in data: 
@@ -143,9 +110,43 @@ def list1(bid):
 	pics = data['pics']
 	mid = data['mid']
 	created = parseTime(data['created_at'])
-	count = listpics(pics, dir, created, bid)
+	count = listmblog(pics, dir, created, bid)
 	log('INFO', '{} fetched, {} pictures found {}\n\thttps://weibo.com/{}/{}\n\thttps://weibo.com/detail/{}.', dir, count, url, data['user']['id'], bid, mid)
 	return count
+
+def listuserpage(userid, after, since_id, progress, dir, count_pics):
+	data = checkjson(context.URL_WB_LIST.format(userid, since_id))
+	if not data: 
+		log('WARN', '{} fetched but no data, {} pictures found.', dir, count_pics)
+		return None, count_pics
+	for card in data['cards']:
+		if not 'mblog' in card or card['card_type'] != 9:
+			continue
+		mblog = card['mblog']
+		if not 'pics' in mblog:
+			continue
+		if not dir: 
+			dir = dirname(mblog['user'])
+			if dir: log('DEBUG', '{} user dowloading to {} is starting...'.format(progress, dir))
+		created = parseTime(mblog['created_at'])
+		if created.date() < after:
+			log('INFO' if count_pics > 0 else 'DEBUG', '{} {} exceed on {}, {} pictures found.',  progress, dir, created.date(), count_pics)
+			return None, count_pics
+		# count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
+		count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
+	data = data['cardlistInfo']
+	if not 'since_id' in data:
+		log('INFO' if count_pics > 0 else 'DEBUG', '{} {} finished whole weibo history, {} pictures found.', progress, dir, count_pics)
+		return None, count_pics
+	return data['since_id'], count_pics
+
+def listuser(userid, after, progress, dir=None): # defalt yesterday to now
+	count_pics = 0
+	since_id = ''
+	if dir: log('DEBUG', '{} user dowloading to {} is starting...'.format(progress, dir))
+	while (since_id != None):
+		since_id, count_pics = listuserpage(userid, after, since_id, progress, dir, count_pics)
+	return count_pics
 
 def follows(): # defalt yesterday to now
 	count_fo = 0
