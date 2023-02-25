@@ -1,4 +1,4 @@
-import os, wb.context as context
+import os, wb.context as ctx
 from wb.context import opts, getjson
 from wb.utils import *
 
@@ -19,7 +19,7 @@ def checkjson(api, retry=3):
 
 def checkprofile(userid, retry = 3):
 	retried = 0
-	profileurl = context.URL_WB_PROFILE.format(userid)
+	profileurl = ctx.URL_WB_PROFILE.format(userid)
 	while retried < retry:
 		r = getjson(profileurl)
 		if r and 1 == r['ok']: return r['data']['user']
@@ -46,10 +46,10 @@ def parsepics(mblog):
 	if mblog['pic_num'] <= 9: 
 		pics = mblog['pics']
 	else:
-		datamore = checkjson(context.URL_WB_ITEM.format(mblog['bid']))
+		datamore = checkjson(ctx.URL_WB_ITEM.format(mblog['bid']))
 		pics = (datamore if datamore else mblog)['pics']
 	if 'edit_count' in mblog and mblog['edit_count'] > 0: # find all history
-		data = checkjson(context.URL_WB_ITEM_HIS.format(mblog['mid']))
+		data = checkjson(ctx.URL_WB_ITEM_HIS.format(mblog['mid']))
 		groups = [c['card_group'] for c in data['cards'] if c['card_type'] == 11]
 		his = [c['mblog']['pics'] for cs in groups for c in cs if c['card_type'] == 9 and 'pics' in c['mblog']]
 		pichis = [p for ps in his for p in ps]
@@ -69,17 +69,20 @@ def listmblog(pics, dir, created, bid):
 				log('DEBUG', '{}/{}-{}-{} is live video, ignored {}', dir, created.strftime('%Y%m%d_%H%M%S'), bid, pi, pic['large']['url'])
 				continue
 
-		ext = os.path.splitext(pic['large']['url'])[1].split('?')[0]
-		zzx = pic['large']['url'].startswith('https://zzx.')
-		if (zzx): ext = '[zzx]' + ext
+		url = pic['large']['url']
+		ext = os.path.splitext(url)[1].split('?')[0]
+		zzx = url.startswith('https://zzx.')
+		if (zzx): 
+			# url = url.replace('/largeb/', '/large/') 
+			ext = '[zzx]' + ext
 		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi, pic['pid'], ext)
 		if ext.lower() == '.gif':
-			log('DEBUG', '{}/{} is is gif, ignored {}', dir, filename, pic['large']['url'])
-			# log('DEBUG', '{}/{}[{}] at {} is gif, ignored {}', dir, bid, pi, created, pic['large']['url'])
+			log('DEBUG', '{}/{} is is gif, ignored {}', dir, filename, url)
+			# log('DEBUG', '{}/{}[{}] at {} is gif, ignored {}', dir, bid, pi, created, url)
 			continue
 		img = {
 			'id': pic['pid'],
-			'url': pic['large']['url'],
+			'url': url,
 			'width': int(pic['large']['geo']['width']),
 			'height': int(pic['large']['geo']['height']),
 			'dirname': dir,
@@ -88,20 +91,20 @@ def listmblog(pics, dir, created, bid):
 		if notsmall(img['width'], img['height']):
 			log('DEBUG', '{}/{} dimension {}:{} too small and ignored {}', dir, filename, img['width'], img['height'], pic['large']['url'])
 			continue
-		# if pic['pid'] in context.checkpids:
+		# if pic['pid'] in ctx.checkpids:
 		# 	log('DEBUG', 'ignore checked: {}\{} ', dir, filename)
 		# 	continue
-		dirn = context.basedir + os.sep + dir
+		dirn = ctx.basedir + os.sep + dir
 		if not os.path.isdir(dirn):
 			os.makedirs(dirn, exist_ok=True)
-		context.sum_bytes += Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx).start(ignoring=lambda s: s < 10240 or (not zzx and s < 51200))
-		# print(context.CURL_CMD.format(img['url'], dirn + os.sep + filename))
+		ctx.sum_bytes += Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx, ignoring=lambda s: s < 10240 or (not zzx and s < 51200)).start()
+		# print(ctx.CURL_CMD.format(img['url'], dirn + os.sep + filename))
 		count += 1
-		# if context.checklogf: context.checklogf.writelines([pic['pid'], '\n'])
+		# if ctx.checklogf: ctx.checklogf.writelines([pic['pid'], '\n'])
 	return count
 
 def listmblogbid(bid):
-	url = context.URL_WB_ITEM.format(bid)
+	url = ctx.URL_WB_ITEM.format(bid)
 	data = checkjson(url)
 	if not data or not 'pics' in data: 
 		log('WARN', '{} fetched {} but no data.', dir, url)
@@ -115,7 +118,7 @@ def listmblogbid(bid):
 	return count
 
 def listuserpage(userid, after, since_id, progress, dir, count_pics):
-	data = checkjson(context.URL_WB_LIST.format(userid, since_id))
+	data = checkjson(ctx.URL_WB_LIST.format(userid, since_id))
 	if not data: 
 		log('WARN', '{} fetched but no data, {} pictures found.', dir, count_pics)
 		return None, count_pics
@@ -132,7 +135,6 @@ def listuserpage(userid, after, since_id, progress, dir, count_pics):
 		if created.date() < after:
 			log('INFO' if count_pics > 0 else 'DEBUG', '{} {} exceed on {}, {} pictures found.',  progress, dir, created.date(), count_pics)
 			return None, count_pics
-		# count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
 		count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
 	data = data['cardlistInfo']
 	if not 'since_id' in data:
@@ -154,7 +156,7 @@ def follows(): # defalt yesterday to now
 	fos = []
 	try:
 		while (True):
-			data = checkjson(context.URL_FOLLOWERS.format(page))
+			data = checkjson(ctx.URL_FOLLOWERS.format(page))
 			if not data: return fos
 			count_fo = 0
 			for cards in data['cards']:

@@ -5,8 +5,8 @@
 原仓库提供大量参考：
 
 - [nondanee/weiboPicDownloader](https://github.com/nondanee/weiboPicDownloader) (original repo)
-- [yAnXImIN/weiboPicDownloader](https://github.com/yAnXImIN/weiboPicDownloader)  
-- [ningshu/weiboPicDownloader](https://github.com/ningshu/weiboPicDownloader) 
+- [yAnXImIN/weiboPicDownloader](https://github.com/yAnXImIN/weiboPicDownloader)
+- [ningshu/weiboPicDownloader](https://github.com/ningshu/weiboPicDownloader)
 - [fireattack/weiboPicDownloader](https://github.com/fireattack/weiboPicDownloader)
 
 ## 使用
@@ -25,7 +25,7 @@ python wbpic.py SINCE UID UID UID ...
 
 - 无参数：拉取昨日0点开始，默认配置文件中用户列表
 - 单条模式：`python wbpic.py #mid`
-- SINCE: 
+- SINCE：
 	- 数字：天数，拉取几天前（0点开始）
 	- 日期：20030101
 	- `''`：空字符串（需要引号）表示拉取所有微博
@@ -71,7 +71,7 @@ python wbpic.py SINCE UID UID UID ...
 "card_type": 9
 ~~~
 - 关注列表	`https://m.weibo.cn/api/container/getIndex?containerid=231093_-_selffollowed&page={pageno}`
-	- -H "Cookie: SUB=" 
+	- -H "Cookie: SUB="
 	- --compressed
 	- r.data.cards[].card_group[].card_type = 10
 	- 下一页: r.data.cardlistInfo.page
