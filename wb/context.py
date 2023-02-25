@@ -1,5 +1,5 @@
-import os, pyjson5
-from wb.utils import log, httpget, session, WBPIC_DIR, loglevel
+import os, multiprocessing as mproc, pyjson5
+from wb.utils import log, httpget, session, WBPIC_DIR, loglevel, sigign
 
 URL_WB_PROFILE = 'https://m.weibo.cn/profile/info?uid={}'
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
@@ -50,3 +50,13 @@ def getjson(url):
 
 sum_bytes = 0
 sum_pics = 0
+
+def poolize(syncing, asyncing=None):
+	parals = opts.get('concurrency', mproc.cpu_count() - 1)
+	if not asyncing or parals <= 1: return syncing()
+	try:
+		with mproc.Pool(parals, sigign) as tpool:
+			asyncing(tpool, parals)
+	except KeyboardInterrupt:
+		tpool.terminate()
+

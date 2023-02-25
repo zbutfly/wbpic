@@ -1,9 +1,10 @@
-import sys, os, time, calendar, datetime, dateutil, math, random, re, pyjson5, requests, shutil, copy
+import sys, signal, os, time, calendar, datetime, dateutil, math, random, re, pyjson5, requests, shutil, copy
 from timeit import default_timer as timer
 from colorama import Fore as fcolor
 # from hurry.filesize import bsize
 
-tpool = None
+def sigign():
+	signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 WBPIC_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 
@@ -146,14 +147,14 @@ def httpget(target, headers, retry, interval):
 				if r.status_code < 200 and r.status_code >= 300:
 					log('ERROR', '{} fetch incorrectly spent {} secs return {}, {}', target, msec(spent), r, r.text)
 					return
-				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', '{} fetch slow spent {} ms return {}', target, msec(spent), r)
+				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', '{} fetch slow spent {} secs return {}', target, msec(spent), r)
 				return r.text
 		except Exception as e:
 			log('ERROR', '{} spent {} secs and failed {}', target, msec(timer() - now), e)
 			return
 		finally:
 			time.sleep(abs(random.gauss(interval, interval/2.5)))
-	log('ERROR', '{} failed after retries {} and spent {} ms.', target, retried, msec(timer() - now))
+	log('ERROR', '{} failed after retries {} and spent {} secs.', target, retried, msec(timer() - now))
 
 class Fetcher(object):
 	def __init__(self, url, file_path, created, headers, forcing, ignoring=None):
