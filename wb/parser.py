@@ -144,20 +144,13 @@ def listuserpage(userid, after, since_id, progress, dir, mblog_args):
 	return data['since_id'], mblog_args
 
 def listuser(userid, after, progress, dir=None): # defalt yesterday to now
-	count_pics = 0
 	since_id = ''
 	if dir: log('DEBUG', '{} user dowloading to {} is starting...'.format(progress, dir))
 	mblog_args = []
 	while (since_id != None):
 		since_id, mblog_args = listuserpage(userid, after, since_id, progress, dir, mblog_args)
 	if len(mblog_args) == 0: return 0
-	# if pool:
-	# 	for c in pool.starmap_async(listmblog, async_args).get(): count_pics += c
-	for args in mblog_args: count_pics += listmblog(args[0], args[1], args[2], args[3])
-	return count_pics
-
-def listuser_imap(args):
-	return listuser(args[0], args[1], args[2], dir=args[3])
+	return ctx.poolize(mblog_args, lambda r:listmblog(r[0], r[1], r[2], r[3]))
 
 def follows(): # defalt yesterday to now
 	count_fo = 0

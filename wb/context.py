@@ -51,12 +51,16 @@ def getjson(url):
 sum_bytes = 0
 sum_pics = 0
 
-def poolize(syncing, asyncing=None):
+def poolize(args, func): # func: args, func, pool ->
 	parals = opts.get('concurrency', mproc.cpu_count() - 1)
-	if not asyncing or parals <= 1: return syncing()
-	try:
-		with mproc.Pool(parals, sigign) as tpool:
-			asyncing(tpool, parals)
-	except KeyboardInterrupt:
-		tpool.terminate()
-
+	c = 0
+	if parals <= 1: 
+		for r in args: c+=func(r)
+		return c
+	with mproc.Pool(parals, sigign) as tpool:
+		try:
+			for r in tpool.imap_unordered(func, args):
+				c+=r
+			return c
+		except KeyboardInterrupt:
+			tpool.terminate()
