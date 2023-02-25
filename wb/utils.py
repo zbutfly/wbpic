@@ -3,6 +3,8 @@ from timeit import default_timer as timer
 from colorama import Fore as fcolor
 # from hurry.filesize import bsize
 
+tpool = None
+
 WBPIC_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 
 def _c(color, str):
@@ -36,7 +38,7 @@ def log(level, format, *vars):
 		return
 	level = level if level else 'INFO'
 	levcolor = _LEVEL_COLORS[level.upper()]
-	# if threadpool:
+	# if tpool:
 		# msg = '{} {} [{}] '.format(_c(fcolor.BLUE, 'REM'), threading.current_thread(), _c(levcolor, level)) + _c(levcolor, format)
 	# else:
 	msg = '{} [{}] '.format(_c(fcolor.BLUE, 'REM'), _c(levcolor, level)) + _c(levcolor, format)
@@ -142,9 +144,9 @@ def httpget(target, headers, retry, interval):
 					time.sleep(abs(random.gauss(interval*10, interval*4)))
 					continue
 				if r.status_code < 200 and r.status_code >= 300:
-					log('ERROR', '{} fetch incorrectly spent {} ms secs return {}, {}', target, msec(spent), r, r.text)
+					log('ERROR', '{} fetch incorrectly spent {} secs return {}, {}', target, msec(spent), r, r.text)
 					return
-				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', '{} fetch slow spent {} secs return {}', target, msec(spent), r)
+				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', '{} fetch slow spent {} ms return {}', target, msec(spent), r)
 				return r.text
 		except Exception as e:
 			log('ERROR', '{} spent {} secs and failed {}', target, msec(timer() - now), e)

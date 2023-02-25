@@ -1,4 +1,4 @@
-import os, wb.context as ctx
+import os, wb.context as context
 from wb.context import opts, getjson
 from wb.utils import *
 
@@ -97,7 +97,7 @@ def listmblog(pics, dir, created, bid):
 		dirn = ctx.basedir + os.sep + dir
 		if not os.path.isdir(dirn):
 			os.makedirs(dirn, exist_ok=True)
-		ctx.sum_bytes += Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx, ignoring=lambda s: s < 10240 or (not zzx and s < 51200)).start()
+		context.sum_bytes += Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx).start(ignoring=lambda s: s < 10240 or (not zzx and s < 51200))
 		# print(ctx.CURL_CMD.format(img['url'], dirn + os.sep + filename))
 		count += 1
 		# if ctx.checklogf: ctx.checklogf.writelines([pic['pid'], '\n'])
@@ -117,11 +117,11 @@ def listmblogbid(bid):
 	log('INFO', '{} fetched, {} pictures found {}\n\thttps://weibo.com/{}/{}\n\thttps://weibo.com/detail/{}.', dir, count, url, data['user']['id'], bid, mid)
 	return count
 
-def listuserpage(userid, after, since_id, progress, dir, count_pics):
+def listuserpage(userid, after, since_id, progress, dir, async_args):
 	data = checkjson(ctx.URL_WB_LIST.format(userid, since_id))
 	if not data: 
-		log('WARN', '{} fetched but no data, {} pictures found.', dir, count_pics)
-		return None, count_pics
+		log('WARN', '{} fetched but no data, {} pictures found.', dir, len(async_args))
+		return None, async_args
 	for card in data['cards']:
 		if not 'mblog' in card or card['card_type'] != 9:
 			continue
@@ -133,22 +133,30 @@ def listuserpage(userid, after, since_id, progress, dir, count_pics):
 			if dir: log('DEBUG', '{} user dowloading to {} is starting...'.format(progress, dir))
 		created = parseTime(mblog['created_at'])
 		if created.date() < after:
-			log('INFO' if count_pics > 0 else 'DEBUG', '{} {} exceed on {}, {} pictures found.',  progress, dir, created.date(), count_pics)
-			return None, count_pics
-		count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
+			log('INFO' if len(async_args) > 0 else 'DEBUG', '{} {} exceed on {}, {} pictures found.',  progress, dir, created.date(), len(async_args))
+			return None, async_args
+		# count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
+		async_args += [(parsepics(mblog), dir, created, mblog['bid'])]
 	data = data['cardlistInfo']
 	if not 'since_id' in data:
-		log('INFO' if count_pics > 0 else 'DEBUG', '{} {} finished whole weibo history, {} pictures found.', progress, dir, count_pics)
-		return None, count_pics
-	return data['since_id'], count_pics
+		log('INFO' if len(async_args) > 0 else 'DEBUG', '{} {} finished whole weibo history, {} pictures found.', progress, dir, len(async_args))
+		return None, async_args
+	return data['since_id'], async_args
 
 def listuser(userid, after, progress, dir=None): # defalt yesterday to now
 	count_pics = 0
 	since_id = ''
 	if dir: log('DEBUG', '{} user dowloading to {} is starting...'.format(progress, dir))
+	async_args = []
 	while (since_id != None):
-		since_id, count_pics = listuserpage(userid, after, since_id, progress, dir, count_pics)
+		since_id, async_args = listuserpage(userid, after, since_id, progress, dir, async_args)
+		count_pics += len(async_args)
+	if len(async_args) == 0: return 0
+	for c in utils.tpool.starmap_async(listmblog, async_args).get(): count_pics += c
 	return count_pics
+
+def listuser_imap(args):
+	return listuser(args[0], args[1], args[2], dir=args[3])
 
 def follows(): # defalt yesterday to now
 	count_fo = 0
