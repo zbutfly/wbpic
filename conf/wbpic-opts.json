@@ -4,7 +4,7 @@
 	"interval": 0.4,
 	"retry": 3,
 	"log_level": "INFO",
-	"concurrency": 7,
+	"concurrency": 1,
 	"batchsize_user": 50,
 	// "skip": 540,
 	"headers_pics": {

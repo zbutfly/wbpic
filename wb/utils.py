@@ -147,7 +147,7 @@ def httpget(target, headers, retry, interval):
 				if r.status_code < 200 and r.status_code >= 300:
 					log('ERROR', '{} fetch incorrectly spent {} secs return {}, {}', target, msec(spent), r, r.text)
 					return
-				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', '{} fetch slow spent {} secs return {}', target, msec(spent), r)
+				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', 'fetch slow spent {} secs return {}: {}', msec(spent), r, target)
 				return r.text
 		except Exception as e:
 			log('ERROR', '{} spent {} secs and failed {}', target, msec(timer() - now), e)
@@ -179,8 +179,8 @@ class Fetcher(object):
 				r.raise_for_status()
 				return int(r.headers['Content-Length']) if 'Content-Length' in r.headers else -1
 		except Exception as e:
-			log('ERROR', '{} HEAD fetching failed {} for erro {}.', self.file_path, self.url, e)
-			log('ERROR', '{} HEAD invalid {}, failed {}', self.file_path, r, self.url)
+			log('ERROR', '{} HEAD fetching failed {} for error {}.', self.file_path, self.url, e)
+			return -1
 
 	def sizecheck(self, ignoring): # return size_needs
 		if self.size_expected < 0: return -1
@@ -198,7 +198,7 @@ class Fetcher(object):
 	def sizelog(self, size_fetched, size_expected, size_needs, size_curr, spent):
 		extra = 'total: {}/fetched: {}'.format(bsize(size_expected), bsize(size_fetched))
 		if size_expected < 0 or size_curr == size_expected:
-			log('DEBUG' if spent < 2.4 else 'INFO', '{} fetching entirely finished, spent {} secs from {}, {}', self.file_path, msec(spent), self.url, extra)
+			log('DEBUG' if size_fetched / spent > 512000 else 'INFO', '{} fetching entirely finished, spent {} secs from {}, {}', self.file_path, msec(spent), self.url, extra)
 		else:
 			if size_needs > 0: extra += '/need: {}'.format(bsize(size_needs))
 			extra += '/current: {}'.format(bsize(size_curr))
@@ -218,37 +218,50 @@ class Fetcher(object):
 		if size_expected > 0 and size_writen != size_expected: log('ERROR', '{} size {} not match expected {} from {}', self.file_path, size_writen, size_expected, self.url)
 		return size_writen
 
-	def download(self, size_expected, size_curr):
-		try:
-			if (size_expected < 0): return self.download_directly()
-				# zzx = self.download_directly()
-				# self.url = self.url.replace('/largeb/', '/large/')
-				# self.file_path = self.file_path.replace('[zzx]', '')
-				# zzx0 = self.download_directly()
-				# return zzx0 if zzx0 > 0 else zzx
-			while size_curr < size_expected:
-				if (size_expected >= 0):
-					if size_curr == 0:
-						log('DEBUG', "%s total %s to be fetched..." % (self.file_path, bsize(size_expected)))
-					else:
-						log('INFO', "%s total %s and existed %s, resuming from %2.2f%%..." % (self.file_path, bsize(size_expected), bsize(size_curr), 100 * size_curr / size_expected))
-				if (size_curr > 0): self.headers['Range'] = 'bytes=%d-' % size_curr
-				with session.get(self.url, stream=True, headers=self.headers) as r:
-					r.raise_for_status()
-					with open(self.file_path, "ab") as f:
-						shutil.copyfileobj(r.raw, f)
-				size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
-		except Exception as e:
-			log('ERROR', '{} fetching failed {} for error {}, \n\ttotal {} bytes and {} bytes fetched.', self.file_path, self.url, e, size_expected, size_curr)
-		finally:
+	def download(self, size_expected, size_begin): # return bytes from http
+		bytes = 0
+		retried = 0
+		size_curr = size_begin
+		while retried < 5:
+			try:
+				if (size_expected < 0): 
+					bytes = self.download_directly()
+					# zzx = self.download_directly()
+					# self.url = self.url.replace('/largeb/', '/large/')
+					# self.file_path = self.file_path.replace('[zzx]', '')
+					# zzx0 = self.download_directly()
+					# return zzx0 if zzx0 > 0 else zzx
+					break
+				while size_curr < size_expected:
+					if (size_expected >= 0):
+						if size_curr == 0:
+							log('DEBUG', "%s total %s to be fetched..." % (self.file_path, bsize(size_expected)))
+						else:
+							log('INFO', "%s total %s and existed %s, resuming from %2.2f%%..." % (self.file_path, bsize(size_expected), bsize(size_curr), 100 * size_curr / size_expected))
+					if (size_curr > 0): self.headers['Range'] = 'bytes=%d-' % size_curr
+					with session.get(self.url, stream=True, headers=self.headers) as r:
+						r.raise_for_status()
+						# for chunk in r.iter_content(chunk_size=9612):
+						# 	bytes += len(chunk)
+						with open(self.file_path, "ab") as f:
+							shutil.copyfileobj(r.raw, f)
+					size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
+					bytes = size_curr - size_begin
+				break
+			except Exception as e:
+				log('ERROR', '{} fetching failed error {} retried {}, total {} and fetched {} bytes from {}.', self.file_path, e, retried, size_expected, bytes, self.url)
+				retried += 1
+		if os.path.exists(self.file_path):
 			os.utime(self.file_path, (int(self.created.timestamp()), int(self.created.timestamp())))
-			return os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
+		# log('ERROR', '{} fetching failed after full retried {}, total {} and fetched {} bytes from {}.', self.file_path, retried, size_expected, bytes, self.url)
+		return bytes
 
 	def start(self):
-		now = timer()
 		if self.size_needs == 0: return 0
-		size_curr = self.download(self.size_expected, self.size_begin)
+		now = timer()
+		size_fetched = self.download(self.size_expected, self.size_begin)
 		spent = timer() - now
-		size_fetched = size_curr - self.size_begin
+		size_curr = os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
+		# size_fetched = size_curr - self.size_begin
 		self.sizelog(size_fetched, self.size_expected, self.size_needs, size_curr, spent)
 		return size_fetched

@@ -135,7 +135,6 @@ def listuserpage(userid, after, since_id, progress, dir, mblog_args):
 		if created.date() < after:
 			log('INFO' if len(mblog_args) > 0 else 'DEBUG', '{} {} exceed on {}, {} pictures found.',  progress, dir, created.date(), len(mblog_args))
 			return None, mblog_args
-		# count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
 		mblog_args.append((listmblog, parsepics(mblog), dir, created, mblog['bid']))
 	data = data['cardlistInfo']
 	if not 'since_id' in data:
@@ -150,7 +149,7 @@ def listuser(userid, after, progress, dir=None): # defalt yesterday to now
 	while (since_id != None):
 		since_id, mblog_args = listuserpage(userid, after, since_id, progress, dir, mblog_args)
 	if len(mblog_args) == 0: return 0
-	return ctx.poolize(mblog_args)
+	return ctx.poolize(mblog_args, 1)
 
 def follows(): # defalt yesterday to now
 	count_fo = 0

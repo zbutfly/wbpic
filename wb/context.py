@@ -53,14 +53,13 @@ sum_pics = 0
 
 def _exec(args):
 	func = args[0]
-	args = args[1:]
-	return func(*args)
+	args_real = args[1:]
+	return func(*args_real)
 
-def poolize(args): # func: args, func, pool ->
-	parals = opts.get('concurrency', multiprocessing.cpu_count() - 1)
+def poolize(args, parals): # func: args, func, pool ->
 	c = 0
 	if parals <= 1: 
-		for r in args: c+=_exec(args)
+		for r in args: c+=_exec(r)
 		return c
 	with mproc.Pool(parals, sigign if 'cpu_count' in dir(mproc) else None) as p:
 		try:
