@@ -54,7 +54,7 @@ def parsepics(mblog):
 		his = [c['mblog']['pics'] for cs in groups for c in cs if c['card_type'] == 9 and 'pics' in c['mblog']]
 		pichis = [p for ps in his for p in ps]
 		for p in [p for p in pichis if not p['pid'] in [pp['pid'] for pp in pics]]:
-			pics += [p]
+			pics.append(p)
 	return pics
 
 def listmblog(pics, dir, created, bid):
@@ -165,7 +165,7 @@ def follows(): # defalt yesterday to now
 					if card['card_type'] != 10:
 						continue
 					# 2310930026_1_ _2253751997[15:]
-					fos += [{card['user']['id']:  card['user']['screen_name']}]
+					fos.append({card['user']['id']:  card['user']['screen_name']})
 					count_fo += 1
 			log('DEBUG', '......{} followers found', count_fo)
 			page = data['cardlistInfo']['page']
