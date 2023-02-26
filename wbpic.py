@@ -8,7 +8,7 @@ def followings():
 	print(json.dumps(follows(), indent=2, ensure_ascii=False))
 
 def wbpic():
-	batchsize = int(ctx.opts.get('batchsize_user', '50'))
+	batchsize = int(ctx.opts.get('batchsize_user', '50')) - 1
 	since = parsesince()
 	uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and n[1] != '#')
 	total = len(uids)
@@ -17,12 +17,12 @@ def wbpic():
 	for uid in uids:
 		c += 1
 		if ('skip' in ctx.opts and c <= ctx.opts['skip']): continue
-		user_args += [(uid, since, '[{}/{}]'.format(c, total), uids[uid] if isinstance(uids, dict) else None)]
+		user_args.append((listuser, uid, since, '[{}/{}]'.format(c, total), uids[uid] if isinstance(uids, dict) else None))
 		if (len(user_args) > batchsize):
-			ctx.sum_pics += ctx.poolize(user_args, lambda r:listuser(r[0], r[1], r[2], dir=r[3]))
+			ctx.sum_pics += ctx.poolize(user_args)
 			user_args = []
 	if (len(user_args) > 0):
-		ctx.sum_pics += ctx.poolize(user_args, lambda r:listuser(r[0], r[1], r[2], dir=r[3]))
+		ctx.sum_pics += ctx.poolize(user_args)
 
 def main():
 	now = timer()

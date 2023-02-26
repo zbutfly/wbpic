@@ -136,7 +136,7 @@ def listuserpage(userid, after, since_id, progress, dir, mblog_args):
 			log('INFO' if len(mblog_args) > 0 else 'DEBUG', '{} {} exceed on {}, {} pictures found.',  progress, dir, created.date(), len(mblog_args))
 			return None, mblog_args
 		# count_pics += listmblog(parsepics(mblog), dir, created, mblog['bid'])
-		mblog_args += [(parsepics(mblog), dir, created, mblog['bid'])]
+		mblog_args.append((listmblog, parsepics(mblog), dir, created, mblog['bid']))
 	data = data['cardlistInfo']
 	if not 'since_id' in data:
 		log('INFO' if len(mblog_args) > 0 else 'DEBUG', '{} {} finished whole weibo history, {} pictures found.', progress, dir, len(mblog_args))
@@ -150,7 +150,7 @@ def listuser(userid, after, progress, dir=None): # defalt yesterday to now
 	while (since_id != None):
 		since_id, mblog_args = listuserpage(userid, after, since_id, progress, dir, mblog_args)
 	if len(mblog_args) == 0: return 0
-	return ctx.poolize(mblog_args, lambda r:listmblog(r[0], r[1], r[2], r[3]))
+	return ctx.poolize(mblog_args)
 
 def follows(): # defalt yesterday to now
 	count_fo = 0

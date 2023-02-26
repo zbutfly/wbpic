@@ -1,4 +1,4 @@
-import os, multiprocessing as mproc, pyjson5
+import os, multiprocessing, multiprocessing.dummy as mproc, pyjson5
 from wb.utils import log, httpget, session, WBPIC_DIR, loglevel, sigign
 
 URL_WB_PROFILE = 'https://m.weibo.cn/profile/info?uid={}'
@@ -51,16 +51,21 @@ def getjson(url):
 sum_bytes = 0
 sum_pics = 0
 
-def poolize(args, func): # func: args, func, pool ->
-	parals = opts.get('concurrency', mproc.cpu_count() - 1)
+def _exec(args):
+	func = args[0]
+	args = args[1:]
+	return func(*args)
+
+def poolize(args): # func: args, func, pool ->
+	parals = opts.get('concurrency', multiprocessing.cpu_count() - 1)
 	c = 0
 	if parals <= 1: 
-		for r in args: c+=func(r)
+		for r in args: c+=_exec(args)
 		return c
-	with mproc.Pool(parals, sigign) as tpool:
+	with mproc.Pool(parals, sigign if 'cpu_count' in dir(mproc) else None) as p:
 		try:
-			for r in tpool.imap_unordered(func, args):
+			for r in p.imap_unordered(_exec, args):
 				c+=r
 			return c
 		except KeyboardInterrupt:
-			tpool.terminate()
+			p.terminate()
