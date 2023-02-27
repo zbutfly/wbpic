@@ -1,11 +1,12 @@
-import sys, multiprocessing, json, wb.context as ctx
+import sys, multiprocessing, json, datetime, wb.context as ctx, wb.models.statistics as statistics
 from timeit import default_timer as timer
 from wb.parser import listuser, listmblogbid, follows
-from wb.utils import log, parsesince, parseuids, bsize, msec
+from wb.utils import log, parsesince, parseuids
 
 
 def followings():
 	print(json.dumps(follows(), indent=2, ensure_ascii=False))
+
 
 def wbpic():
 	batchsize = int(ctx.opts.get('batchsize_user', '50')) - 1
@@ -17,7 +18,8 @@ def wbpic():
 	user_args = []
 	for uid in uids:
 		c += 1
-		if ('skip' in ctx.opts and c <= ctx.opts['skip']): continue
+		if ('skip' in ctx.opts and c <= ctx.opts['skip']):
+			continue
 		user_args.append((listuser, uid, since, '[{}/{}]'.format(c, total), uids[uid] if isinstance(uids, dict) else None))
 		if (len(user_args) > batchsize):
 			ctx.sum_pics += ctx.poolize(user_args, parals)
@@ -25,13 +27,19 @@ def wbpic():
 	if (len(user_args) > 0):
 		ctx.sum_pics += ctx.poolize(user_args, parals)
 
+
 def main():
 	now = timer()
 	try:
-		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = listmblogbid(sys.argv[1][1:])
-		else: wbpic()
+		if len(sys.argv) == 2 and sys.argv[1].startswith('#'):
+			ctx.sum_pics = listmblogbid(sys.argv[1][1:])
+		else:
+			wbpic()
 	finally:
 		spent = timer() - now
-		log('INFO', 'Parsing finished {} pictures found and {} fetched in {} secs.', ctx.sum_pics, bsize(ctx.sum_bytes), msec(spent))
+		log('INFO', 'Parsing finished at {}, {} pictures found and {} fetched in {} secs.', datetime.datetime.now(), ctx.sum_pics,
+		    statistics.fbytes(ctx.sum_bytes), statistics.ftimedelta(spent))
 
-if __name__ == '__main__': main()
+
+if __name__ == '__main__':
+	main()
