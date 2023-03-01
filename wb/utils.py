@@ -177,7 +177,7 @@ class Fetcher(object):
 				return int(r.headers['Content-Length']) if 'Content-Length' in r.headers else -1
 		except Exception as e:
 			log('ERROR', '{} HEAD fetching failed {} for erro {}.', self.file_path, self.url, e)
-			log('ERROR', '{} HEAD invalid {}, failed {}', self.file_path, r, self.url)
+			return -1
 
 	def sizecheck(self, ignoring): # return size_needs
 		if self.size_expected < 0: return -1
@@ -238,8 +238,10 @@ class Fetcher(object):
 		except Exception as e:
 			log('ERROR', '{} fetching failed {} for error {}, \n\ttotal {} bytes and {} bytes fetched.', self.file_path, self.url, e, size_expected, size_curr)
 		finally:
-			os.utime(self.file_path, (int(self.created.timestamp()), int(self.created.timestamp())))
-			return os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
+			if os.path.exists(self.file_path):
+				os.utime(self.file_path, (int(self.created.timestamp()), int(self.created.timestamp())))
+				return os.path.getsize(self.file_path)
+			else: return 0
 
 	def start(self):
 		now = timer()
