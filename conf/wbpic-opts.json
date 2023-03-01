@@ -1,5 +1,6 @@
 {
 	// "proxy": "", // "sys" (default), "http(s)://user:pass@host:port", "socks5://user:pass@host:port"
+	// "proxy_static": "http://",
 	"basedir": "wbpics",
 	"interval": 0.4,
 	"retry": 3,

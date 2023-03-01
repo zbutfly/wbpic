@@ -70,6 +70,7 @@ python wbpic.py SINCE UID UID UID ...
 ~~~json
 "card_type": 9
 ~~~
+- 收藏列表	`https://m.weibo.cn/api/container/getIndex?containerid=230259&openApp=0`
 - 关注列表	`https://m.weibo.cn/api/container/getIndex?containerid=231093_-_selffollowed&page={pageno}`
 	- -H "Cookie: SUB="
 	- --compressed

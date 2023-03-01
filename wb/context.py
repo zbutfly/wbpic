@@ -1,5 +1,5 @@
 import os, pyjson5
-from wb.utils import log, httpget, session, WBPIC_DIR, loglevel
+from wb.utils import log, httpget, session, session_static, WBPIC_DIR, loglevel
 
 URL_WB_PROFILE = 'https://m.weibo.cn/profile/info?uid={}'
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
@@ -19,9 +19,15 @@ for n in opts['headers_pics']:
 log('DEBUG', 'CURL_OPTS={}', headers_pics_curl)
 CURL_CMD = 'curl "{}" -o "{}" --fail -k -s -R --show-error --retry 999 --retry-max-time 0 -C -' + headers_pics_curl
 
-session.trust_env = not 'proxy' in opts or opts['proxy'].lower() == 'sys'
-if not session.trust_env and opts.get('proxy') != '':
-	session.proxies.update({"https": opts.get('proxy'), "http": opts.get('proxy')})
+p = opts.get('proxy')
+session.trust_env = not p or p.lower() == 'sys'
+if not session.trust_env and p != '':
+	session.proxies.update({"https": p, "http": p})
+
+p = opts.get('proxy_static', p)
+session_static.trust_env = not p or p.lower() == 'sys'
+if not session_static.trust_env and p != '':
+	session_static.proxies.update({"https": p, "http": p})
 
 basedir = opts['basedir'] if 'basedir' in opts else "wbpics"
 

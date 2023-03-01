@@ -1,4 +1,4 @@
-import sys, os, time, calendar, datetime, dateutil, math, random, re, pyjson5, requests, shutil, copy
+import sys, os, time, calendar, datetime, dateutil, requests, math, random, re, pyjson5, shutil, copy
 from timeit import default_timer as timer
 from colorama import Fore as fcolor
 # from hurry.filesize import bsize
@@ -129,6 +129,8 @@ def parseuids(idsarg, accepting=None):
 		with open(WBPIC_DIR + os.sep + os.sep + 'wbpic-uids.json', encoding='UTF-8') as f: return pyjson5.load(f)
 
 session = requests.Session()
+session_static = requests.Session()
+
 def httpget(target, headers, retry, interval):
 	retried = 0
 	now = timer()
@@ -172,7 +174,7 @@ class Fetcher(object):
 
 	def sizeremote(self): # return size_expected
 		try:
-			with session.head(self.url, stream=True, headers=self.headers) as r:
+			with session_static.head(self.url, stream=True, headers=self.headers) as r:
 				r.raise_for_status()
 				return int(r.headers['Content-Length']) if 'Content-Length' in r.headers else -1
 		except Exception as e:
@@ -204,7 +206,7 @@ class Fetcher(object):
 	def download_directly(self, *, decode_unicode=False):
 		size_expected = -1
 		size_writen = 0
-		with session.get(self.url, stream=True, headers=self.headers) as r:
+		with session_static.get(self.url, stream=True, headers=self.headers) as r:
 			r.raise_for_status()
 			if 'Content-Length' in r.headers: size_expected = int(r.headers['Content-Length'])
 			size_writen = 0
@@ -230,7 +232,7 @@ class Fetcher(object):
 					else:
 						log('INFO', "%s total %s and existed %s, resuming from %2.2f%%..." % (self.file_path, bsize(size_expected), bsize(size_curr), 100 * size_curr / size_expected))
 				if (size_curr > 0): self.headers['Range'] = 'bytes=%d-' % size_curr
-				with session.get(self.url, stream=True, headers=self.headers) as r:
+				with session_static.get(self.url, stream=True, headers=self.headers) as r:
 					r.raise_for_status()
 					with open(self.file_path, "ab") as f:
 						shutil.copyfileobj(r.raw, f)
