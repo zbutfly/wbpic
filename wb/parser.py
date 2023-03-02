@@ -49,11 +49,15 @@ def parsepics(mblog):
 		datamore = checkjson(ctx.URL_WB_ITEM.format(mblog['bid']))
 		pics = (datamore if datamore else mblog)['pics']
 	if 'edit_count' in mblog and mblog['edit_count'] > 0: # find all history
+		pids = set([p['pid'] for p in pics])
 		data = checkjson(ctx.URL_WB_ITEM_HIS.format(mblog['mid']))
-		groups = [c['card_group'] for c in data['cards'] if c['card_type'] == 11]
-		his = [c['mblog']['pics'] for cs in groups for c in cs if c['card_type'] == 9 and 'pics' in c['mblog']]
-		pichis = [p for ps in his for p in ps]
-		for p in [p for p in pichis if not p['pid'] in [pp['pid'] for pp in pics]]:
+		pichis = [p for ps in [
+				c['mblog']['pics'] for cs in [c['card_group'] for c in data['cards'] if c['card_type'] == 11]
+				for c in cs if c['card_type'] == 9 and 'pics' in c['mblog']
+			]
+			for p in ps]
+		for p in [p for p in pichis if not p['pid'] in pids]:
+			pids.add(p['pid'])
 			pics.append(p)
 	return pics
 
