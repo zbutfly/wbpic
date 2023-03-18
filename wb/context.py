@@ -56,3 +56,4 @@ def getjson(url):
 
 sum_bytes = 0
 sum_pics = 0
+sum_pics_downloaded = 0

@@ -43,9 +43,8 @@ minh = opts.get('min_dimension', 360)
 notsmall = lambda w, h: w < minw or h <= minh or w + h < 1600
 
 def parsepics(mblog):
-	if mblog['pic_num'] <= 9: 
-		pics = mblog['pics']
-	else:
+	pics = mblog['pics']
+	if (mblog['pic_num'] > 9 and len(pics) < mblog['pic_num']):
 		datamore = checkjson(ctx.URL_WB_ITEM.format(mblog['bid']))
 		pics = (datamore if datamore else mblog)['pics']
 	if 'edit_count' in mblog and mblog['edit_count'] > 0: # find all history
@@ -101,24 +100,29 @@ def listmblog(pics, dir, created, bid):
 		dirn = ctx.basedir + os.sep + dir
 		if not os.path.isdir(dirn):
 			os.makedirs(dirn, exist_ok=True)
-		ctx.sum_bytes += Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx, ignoring=lambda s: s < 10240 or (not zzx and s < 51200)).start()
+		fetcher = Fetcher(img['url'], dirn + os.sep + filename, created, opts['headers_pics'], zzx, ignoring=lambda s: s < 10240 or (not zzx and s < 51200))
+		bytes = fetcher.start()
+		ctx.sum_bytes += bytes
+		ctx.sum_pics += 1
+		if (bytes > 0): ctx.sum_pics_downloaded += 1
 		# print(ctx.CURL_CMD.format(img['url'], dirn + os.sep + filename))
 		count += 1
 		# if ctx.checklogf: ctx.checklogf.writelines([pic['pid'], '\n'])
 	return count
 
-def listmblogbid(bid):
-	url = ctx.URL_WB_ITEM.format(bid)
+def listmblogbid(mid):
+	url = ctx.URL_WB_ITEM.format(mid)
 	data = checkjson(url)
+	bid = data['bid']
 	if not data or not 'pics' in data: 
 		log('WARN', '{} fetched {} but no data.', dir, url)
 		return 0
 	dir = dirname(data['user'])
-	pics = data['pics']
+	pics = parsepics(data) # data['pics']
 	mid = data['mid']
 	created = parseTime(data['created_at'])
 	count = listmblog(pics, dir, created, bid)
-	log('INFO', '{} fetched, {} pictures found {}\n\thttps://weibo.com/{}/{}\n\thttps://weibo.com/detail/{}.', dir, count, url, data['user']['id'], bid, mid)
+	log('INFO', '{} fetched, {} pictures found {}\n\thttps://weibo.com/{}/{}\n\thttps://weibo.com/detail/{}.', dir, count, url, data['user']['id'], mid, mid)
 	return count
 
 def listuserpage(userid, after, since_id, progress, dir, count_pics):

@@ -181,25 +181,26 @@ class Fetcher(object):
 			log('ERROR', '{} HEAD fetching failed {} for erro {}.', self.file_path, self.url, e)
 			return -1
 
-	def sizecheck(self, ignoring): # return size_needs
+	def sizecheck(self, ignoring): # return size_needs for resume, 0 for match or exceed so no download, -1 for redownload
 		if self.size_expected < 0: return -1
 		if ignoring and ignoring(self.size_expected):
-			log('DEBUG', '{} HEAD too small [{}], ignored {}', self.file_path, bsize(self.size_expected), self.url)
+			log('INFO', '{} HEAD too small [{}], ignored {}', self.file_path, bsize(self.size_expected), self.url)
 			return 0
 		if self.size_begin > self.size_expected:
-			log('DEBUG', '{} HEAD current size {} exceed expected {}, ignored {}', self.file_path, bsize(self.size_begin), bsize(self.size_expected), self.url)
+			log('WARN', '{} HEAD current size {} exceed expected {}, ignored {}', self.file_path, bsize(self.size_begin), bsize(self.size_expected), self.url)
 			return 0
 		if self.size_begin == self.size_expected:
 			log('TRACE', '{} HEAD existed and size {} match, ignore {}', self.file_path, bsize(self.size_begin), self.url)
 			return 0
-		return self.size_expected - self.size_begin if self.size_expected >= 0 else -1
+		return self.size_expected - self.size_begin
 
-	def sizelog(self, size_fetched, size_expected, size_needs, size_curr, spent):
-		extra = 'total: {}/fetched: {}'.format(bsize(size_expected), bsize(size_fetched))
-		if size_expected < 0 or size_curr == size_expected:
-			log('DEBUG' if spent < 2.4 else 'INFO', '{} fetching entirely finished, spent {} secs from {}, {}', self.file_path, msec(spent), self.url, extra)
+	def sizelog(self, size_fetched, size_curr, spent):
+		speed = size_fetched / spent # bytes/second
+		extra = 'total: {}/fetched: {}'.format(bsize(self.size_expected), bsize(size_fetched))
+		if self.size_expected < 0 or size_curr == self.size_expected:
+			log('DEBUG' if speed >= 300000 else 'INFO', '{} fetching entirely finished, speed {}/s spent {} secs from {}, {}', self.file_path, bsize(speed), msec(spent), self.url, extra)
 		else:
-			if size_needs > 0: extra += '/need: {}'.format(bsize(size_needs))
+			if self.size_needs > 0: extra += '/need: {}'.format(bsize(self.size_needs))
 			extra += '/current: {}'.format(bsize(size_curr))
 			log('INFO', '{} fetching (resuming) finished spent {} secs from {}, {}', self.file_path, msec(spent), self.url, extra)
 
@@ -251,5 +252,5 @@ class Fetcher(object):
 		size_curr = self.download(self.size_expected, self.size_begin)
 		spent = timer() - now
 		size_fetched = size_curr - self.size_begin
-		self.sizelog(size_fetched, self.size_expected, self.size_needs, size_curr, spent)
+		self.sizelog(size_fetched, size_curr, spent)
 		return size_fetched

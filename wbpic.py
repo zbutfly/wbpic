@@ -1,4 +1,5 @@
-import sys, json, wb.context as ctx
+import sys, json, humanize, wb.context as ctx
+from timeit import default_timer as timer
 from wb.parser import listuser, listmblogbid, follows
 from wb.utils import log, parsesince, parseuids, bsize
 
@@ -6,6 +7,7 @@ def followings():
 	print(json.dumps(follows(), indent=2, ensure_ascii=False))
 
 def main():
+	now = timer()
 	try:
 		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = listmblogbid(sys.argv[1][1:])
 		else:
@@ -16,8 +18,10 @@ def main():
 			for uid in uids:
 				c += 1
 				if ('skip' in ctx.opts and c <= ctx.opts['skip']): continue
-				ctx.sum_pics += listuser(uid, since, '[{}/{}]'.format(c, total), uids[uid] if isinstance(uids, dict) else None)
+				# ctx.sum_pics += 
+				listuser(uid, since, '[{}/{}]'.format(c, total), uids[uid] if isinstance(uids, dict) else None)
 	finally:
-		log('INFO', 'Parsing finished {} pictures found and {} fetched.', ctx.sum_pics, bsize(ctx.sum_bytes))
+		spent = (timer() - now)
+		log('INFO', 'Parsing finished {} pictures found, and {}pics/{} fetched in {}.', ctx.sum_pics, ctx.sum_pics_downloaded, bsize(ctx.sum_bytes), humanize.naturaldelta(spent, minimum_unit='milliseconds'))
 
 if __name__ == '__main__': main()
