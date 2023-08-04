@@ -30,6 +30,7 @@ if not session_static.trust_env and p != '':
 	session_static.proxies.update({"https": p, "http": p})
 
 basedir = opts['basedir'] if 'basedir' in opts else "wbpics"
+filter_small = opts.get('filter', True)
 
 # def opencheck():
 # 	ids = None
@@ -44,6 +45,7 @@ basedir = opts['basedir'] if 'basedir' in opts else "wbpics"
 _HTTP_SLEEP_SECS = opts.get('interval', 0.4)
 _RETRY_MAX = opts.get('retry', 3)
 _HTTP_HEADERS_AUTH = opts.get('headers_auth')
+
 
 def getjson(url):
 	response = httpget(url, _HTTP_HEADERS_AUTH, _HTTP_SLEEP_SECS, _RETRY_MAX)

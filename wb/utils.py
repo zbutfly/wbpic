@@ -39,7 +39,8 @@ def log(level, format, *vars):
 	# if threadpool:
 		# msg = '{} {} [{}] '.format(_c(fcolor.BLUE, 'REM'), threading.current_thread(), _c(levcolor, level)) + _c(levcolor, format)
 	# else:
-	msg = '{} [{}] '.format(_c(fcolor.BLUE, 'REM'), _c(levcolor, level)) + _c(levcolor, format)
+	prefix = _c(fcolor.BLUE, 'REM[{}]'.format(datetime.datetime.now().strftime("%H:%M:%S"))) # %m%d 
+	msg = '{} [{}] '.format(prefix, _c(levcolor, level)) + _c(levcolor, format)
 	print(msg.format(*vars), file=sys.stderr)
 
 BYTE_NAMES = (
@@ -131,7 +132,7 @@ def parseuids(idsarg, accepting=None):
 session = requests.Session()
 session_static = requests.Session()
 
-def httpget(target, headers, retry, interval):
+def httpget(target, headers, interval, retry):
 	retried = 0
 	now = timer()
 	while retried < retry:
@@ -146,7 +147,7 @@ def httpget(target, headers, retry, interval):
 				if r.status_code < 200 and r.status_code >= 300:
 					log('ERROR', '{} fetch incorrectly spent {} ms secs return {}, {}', target, msec(spent), r, r.text)
 					return
-				if (spent > 0.5): log('INFO' if spent < 1 else 'WARN', '{} fetch slow spent {} secs return {}', target, msec(spent), r)
+				if (spent > 2): log('DEBUG' if spent < 5 else 'WARN', '{} fetch slow spent {} secs return {}', target, msec(spent), r)
 				return r.text
 		except Exception as e:
 			log('ERROR', '{} spent {} secs and failed {}', target, msec(timer() - now), e)
@@ -173,18 +174,28 @@ class Fetcher(object):
 		return dateutil.parser.parse(last_modified) if last_modified else None
 
 	def sizeremote(self): # return size_expected
-		try:
-			with session_static.head(self.url, stream=True, headers=self.headers) as r:
-				r.raise_for_status()
-				return int(r.headers['Content-Length']) if 'Content-Length' in r.headers else -1
-		except Exception as e:
-			log('ERROR', '{} HEAD fetching failed {} for erro {}.', self.file_path, self.url, e)
-			return -1
+		retried = 0
+		retries = 5
+		sleep = 2
+		sleepval = 0.7
+		while retried < retries:
+			if retried > 0: time.sleep(abs(random.gauss(sleep, sleepval)))
+			try:
+				with session_static.head(self.url, stream=True, headers=self.headers) as r:
+					r.raise_for_status()
+					if retried > 0: log('INFO', '[retry #{}]{} HEAD successed {}.', retried, self.file_path, self.url)
+					return int(r.headers['Content-Length']) if 'Content-Length' in r.headers else -1
+			except Exception as e:
+				retried = retried + 1
+				if (retried >= retries):
+					log('ERROR', '[retry #{}]{} HEAD failed {} for error {}.', retried, self.file_path, self.url, e)
+					return -1
+		return -1
 
 	def sizecheck(self, ignoring): # return size_needs for resume, 0 for match or exceed so no download, -1 for redownload
 		if self.size_expected < 0: return -1
 		if ignoring and ignoring(self.size_expected):
-			log('INFO', '{} HEAD too small [{}], ignored {}', self.file_path, bsize(self.size_expected), self.url)
+			log('DEBUG', '{} HEAD too small [{}], ignored {}', self.file_path, bsize(self.size_expected), self.url)
 			return 0
 		if self.size_begin > self.size_expected:
 			log('WARN', '{} HEAD current size {} exceed expected {}, ignored {}', self.file_path, bsize(self.size_begin), bsize(self.size_expected), self.url)
@@ -198,7 +209,7 @@ class Fetcher(object):
 		speed = size_fetched / spent # bytes/second
 		extra = 'total: {}/fetched: {}'.format(bsize(self.size_expected), bsize(size_fetched))
 		if self.size_expected < 0 or size_curr == self.size_expected:
-			log('DEBUG' if speed >= 300000 else 'INFO', '{} fetching entirely finished, speed {}/s spent {} secs from {}, {}', self.file_path, bsize(speed), msec(spent), self.url, extra)
+			log('DEBUG' if speed == 0 or speed >= 50000 else 'INFO', '{} fetching entirely finished, speed {}/s spent {} secs from {}, {}', self.file_path, bsize(speed), msec(spent), self.url, extra)
 		else:
 			if self.size_needs > 0: extra += '/need: {}'.format(bsize(self.size_needs))
 			extra += '/current: {}'.format(bsize(size_curr))
