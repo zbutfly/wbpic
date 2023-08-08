@@ -3,10 +3,13 @@ from wb.utils import log, httpget, session, session_static, WBPIC_DIR, loglevel
 
 URL_WB_PROFILE = 'https://m.weibo.cn/profile/info?uid={}'
 URL_WB_LIST = 'https://m.weibo.cn/api/container/getIndex?containerid=230413{}_-_WEIBO_SECOND_PROFILE_WEIBO_ORI&since_id={}'
+URL_WB_LIST2 = 'https://weibo.com/ajax/statuses/searchProfile?hasori=1&haspic=1&hasvideo=1&uid={}&page={}'
+URL_WB_ALL = 'https://weibo.com/ajax/statuses/mymblog?feature=0&uid={}&page={}'
 # https://m.weibo.cn/detail/4850366267002849 or https://m.weibo.cn/status/{}
 # https://m.weibo.cn/statuses/show?id={mblog[bid]}	MtjjJhg2n JSON
 URL_WB_ITEM = 'https://m.weibo.cn/statuses/show?id={}'
 URL_WB_ITEM_HIS = 'https://m.weibo.cn/api/container/getIndex?containerid=231440_-_{}'
+URL_WB_ITEM2 = 'https://weibo.com/ajax/statuses/show?id={}'
 URL_FOLLOWERS = 'https://m.weibo.cn/api/container/getIndex?containerid=231093_-_selffollowed&page={}'
 
 opts = {}
@@ -59,3 +62,4 @@ def getjson(url):
 sum_bytes = 0
 sum_pics = 0
 sum_pics_downloaded = 0
+DOWN_MODE = '_u' # empty for repos users, _u for user id(s), _p for post ids (now only one).

@@ -39,7 +39,7 @@ def log(level, format, *vars):
 	# if threadpool:
 		# msg = '{} {} [{}] '.format(_c(fcolor.BLUE, 'REM'), threading.current_thread(), _c(levcolor, level)) + _c(levcolor, format)
 	# else:
-	prefix = _c(fcolor.BLUE, 'REM[{}]'.format(datetime.datetime.now().strftime("%H:%M:%S"))) # %m%d 
+	prefix = _c(fcolor.BLUE, 'REM[{}]'.format(datetime.datetime.now().strftime("%H:%M:%S"))) # %m%d
 	msg = '{} [{}] '.format(prefix, _c(levcolor, level)) + _c(levcolor, format)
 	print(msg.format(*vars), file=sys.stderr)
 
@@ -174,6 +174,7 @@ class Fetcher(object):
 		return dateutil.parser.parse(last_modified) if last_modified else None
 
 	def sizeremote(self): # return size_expected
+		if (self.url.startswith('http://zzx') or self.url.startswith('https://zzx')): return -1;
 		retried = 0
 		retries = 5
 		sleep = 2
