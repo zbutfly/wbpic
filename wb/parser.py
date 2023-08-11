@@ -59,6 +59,7 @@ def parsepics(mblog):
 		for p in [p for p in pichis if not p['pid'] in pids]:
 			pids.add(p['pid'])
 			pics.append(p)
+		log('WARN', 'Edited {} with {} history, {} pics found.', mblog['mid'], mblog['edit_count'], len(pics))
 	return pics
 
 def listmblog0(img, filter, created, ext, zzx):
@@ -136,7 +137,7 @@ def listmblog(pics, dir, created, bid, filter=ctx.filter_small):
 		}, filter, created, ext, zzx)
 	return count
 
-def listmblogbid(mid, dir = None):
+def listmblogid(mid, dir = None):
 	url = ctx.URL_WB_ITEM.format(mid)
 	data = checkjson(url)
 	if not data or not 'pics' in data:

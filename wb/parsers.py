@@ -5,20 +5,16 @@ from wb.utils import _c, _LEVEL_COLORS
 from wb.context import opts, getjson
 
 class Parser(metaclass=ABCMeta):
-# private
-	@abstractmethod
-	def listmblog(self, pics, dir, created, bid, filter=ctx.filter_small):
-		pass
-	@abstractmethod
-	def listmblogbid(self, mid, dir = None):
-		pass
-# private
-	@abstractmethod
-	def listuserpage(self, userid, after, since_id, progress, dir, count_pics):
-		pass
-	@abstractmethod
-	def listuser(self, userid, after, progress, dir=None): # defalt yesterday to now
-		pass
+	@abstractmethod # private
+	def parsepics(self, mblog): pass
+	@abstractmethod # private
+	def listmblog(self, pics, dir, created, bid, filter=ctx.filter_small): pass
+	@abstractmethod # bid is short (web default), mid is long (wap default/main id)
+	def listmblogid(self, bid, dir = None): pass
+	@abstractmethod # private
+	def listuserpage(self, userid, after, since_id, progress, dir, count_pics): pass
+	@abstractmethod # defalt yesterday to now
+	def listuser(self, userid, after, progress, dir=None): pass 
 
 # private
 	def checkjson(self, api, retry=3, unembed = False):
@@ -61,25 +57,6 @@ class Parser(metaclass=ABCMeta):
 	minh = opts.get('min_dimension', 360)
 # private
 	def toosmall(self, w, h): return w < Parser.minw or h <= Parser.minh or w + h < 1200
-
-# private
-	def parsepics(self, mblog):
-		pics = mblog['pics']
-		if (mblog['pic_num'] > 9 and len(pics) < mblog['pic_num']):
-			datamore = self.checkjson(ctx.URL_WB_ITEM.format(mblog['bid']))
-			pics = (datamore if datamore else mblog)['pics']
-		if 'edit_count' in mblog and mblog['edit_count'] > 0: # find all history
-			pids = set([p['pid'] for p in pics])
-			data = self.checkjson(ctx.URL_WB_ITEM_HIS.format(mblog['mid']))
-			pichis = [p for ps in [
-					c['mblog']['pics'] for cs in [c['card_group'] for c in data['cards'] if c['card_type'] == 11]
-					for c in cs if c['card_type'] == 9 and 'pics' in c['mblog'] and c['mblog']['pics'] != None and int(c['mblog']['id']) > 0
-				]
-				for p in ps]
-			for p in [p for p in pichis if not p['pid'] in pids]:
-				pids.add(p['pid'])
-				pics.append(p)
-		return pics
 
 # private
 	def listmblog0(self, img, filter, created, ext, zzx):
@@ -130,6 +107,17 @@ class Parser(metaclass=ABCMeta):
 			log('INFO', 'Whole follows scanned and {} found.', len(fos))
 
 class WebParser(Parser):
+	def parsepics(self, card):
+		pics = card['pic_infos']
+		if 'edit_count' in card and card['edit_count'] > 0: # find all history
+			hists = self.checkjson(ctx.URL_WB_ITEM_HIS2.format(card['id']), unembed=True)
+			for h in hists['statuses']: 
+				for pid in h['pic_infos']:
+					if not pid in pics: 
+						pics[pid] = hists['statuses'][pid]
+			log('WARN', 'Edited {} for {} times, {} pics found.', card['mblogid'], card['edit_count'], len(pics))
+		return pics
+
 	def listmblog(self, pics, dir, created, bid, filter=ctx.filter_small):
 		count = 0
 		for pi in pics:
@@ -150,19 +138,17 @@ class WebParser(Parser):
 			}, filter, created, ext, zzx)
 		return count
 
-	def listmblogbid(self, mid, dir = None):
-		url = ctx.URL_WB_ITEM2.format(mid)
-		data = self.checkjson(url, unembed = True)
-		if not data or not 'pic_infos' in data:
+	def listmblogid(self, bid, dir = None):
+		url = ctx.URL_WB_ITEM2.format(bid)
+		card = self.checkjson(url, unembed = True)
+		if not card or not 'pic_infos' in card:
 			log('WARN', '{} fetched {} but no data.', dir, url)
 			return 0
-		bid = data['mblogid']
-		if dir == None: dir = dirname(data['user'])
-		pics = data['pic_infos'] # data['pics']
-		mid = data['id']
-		created = parseTime(data['created_at'])
+		if dir == None: dir = dirname(card['user'])
+		pics = self.parsepics(card)
+		created = parseTime(card['created_at'])
 		count = self.listmblog(pics, dir, created, bid, filter=False)
-		log('INFO', '{} fetched, {} pictures found {}\n\thttps://weibo.com/{}/{}\n\thttps://weibo.com/detail/{}.', dir, count, url, data['user']['id'], mid, mid)
+		log('INFO', '{} fetched, {} pictures found from [https://weibo.com/{}/{}] [https://weibo.com/detail/{}].', dir, count, card['user']['id'], bid, card['id'])
 		return count
 
 	now = -1
@@ -217,8 +203,26 @@ class WebParser(Parser):
 			pageno, count_pics = self.listuserpage(userid, after, pageno, progress, dir, count_pics)
 		return count_pics
 
-# special parsing for wap
 class WapParser(Parser):
+	def parsepics(self, mblog):
+		pics = mblog['pics']
+		if (mblog['pic_num'] > 9 and len(pics) < mblog['pic_num']):
+			datamore = self.checkjson(ctx.URL_WB_ITEM.format(mblog['bid']))
+			pics = (datamore if datamore else mblog)['pics']
+		if 'edit_count' in mblog and mblog['edit_count'] > 0: # find all history
+			pids = set([p['pid'] for p in pics])
+			data = self.checkjson(ctx.URL_WB_ITEM_HIS.format(mblog['mid']))
+			pichis = [p for ps in [
+					c['mblog']['pics'] for cs in [c['card_group'] for c in data['cards'] if c['card_type'] == 11]
+					for c in cs if c['card_type'] == 9 and 'pics' in c['mblog'] and c['mblog']['pics'] != None and int(c['mblog']['id']) > 0
+				]
+				for p in ps]
+			for p in [p for p in pichis if not p['pid'] in pids]:
+				pids.add(p['pid'])
+				pics.append(p)
+			log('WARN', 'Edited {} with {} history, {} pics found.', mblog['mid'], mblog['edit_count'], len(pics))
+		return pics
+
 	def listmblog(self, pics, dir, created, bid, filter=ctx.filter_small):
 		count = 0
 		for pi in range(0, len(pics)):
@@ -247,7 +251,7 @@ class WapParser(Parser):
 			}, filter, created, ext, zzx)
 		return count
 
-	def listmblogbid(self, mid, dir = None):
+	def listmblogid(self, mid, dir = None):
 		url = ctx.URL_WB_ITEM.format(mid)
 		data = self.checkjson(url)
 		if not data or not 'pics' in data:

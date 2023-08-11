@@ -1,6 +1,6 @@
 import sys, json, humanize, wb.context as ctx
 from timeit import default_timer as timer
-from wb.parser import listuser, listmblogbid #, follows
+from wb.parser import listuser, listmblogid #, follows
 from wb.utils import log, parsesince, parseuids, bsize
 
 # def followings():
@@ -9,7 +9,7 @@ from wb.utils import log, parsesince, parseuids, bsize
 def main():
 	now = timer()
 	try:
-		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = listmblogbid(sys.argv[1][1:])
+		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = listmblogid(sys.argv[1][1:])
 		else:
 			since = parsesince()
 			uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and n[1] != '#')

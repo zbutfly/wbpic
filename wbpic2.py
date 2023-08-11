@@ -9,7 +9,7 @@ from wb.utils import log, parsesince, parseuids, bsize
 def main():
 	now = timer()
 	try:
-		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = WebParser().listmblogbid(sys.argv[1][1:])
+		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = WebParser().listmblogid(sys.argv[1][1:])
 		else:
 			since = parsesince()
 			uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and n[1] != '#')
