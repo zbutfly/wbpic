@@ -60,23 +60,17 @@ class Parser(metaclass=ABCMeta):
 
 # private
 	def listmblog0(self, img, filter, created, ext, zzx):
-		# if ext.lower() != '.gif':
-		# 	log('DEBUG', '{}/{} is is gif, ignored {}', dir, filename, url)
-		# 	# log('DEBUG', '{}/{}[{}] at {} is gif, ignored {}', dir, bid, pi, created, url)
-		# 	continue
-		if filter and ext.lower() != '.gif' and self.toosmall(img['width'], img['height']):
-			log('DEBUG', '{}/{} dimension {}:{} too small and ignored {}', dir, img['filename'], img['width'], img['height'], img['url'])
+		if filter and ext.lower() != '.gif' and self.toosmall(img['width'], img['height']): # {}, img['url']
+			log('WARN', '{}\{} too small [{}:{}], ignored.', img['dirname'], img['filename'], img['width'], img['height'])
 			return 0
-		# if pic['pid'] in ctx.checkpids:
-		# 	log('DEBUG', 'ignore checked: {}\{} ', dir, filename)
-		# 	continue
 		dirn = ctx.basedir + ctx.DOWN_MODE + os.sep + img['dirname']
 		if not os.path.exists(dirn) or not os.path.isdir(dirn):
 			try:
 				os.makedirs(dirn, exist_ok=True)
 			except:
 				pass
-		fetcher = Fetcher(img['url'], dirn + os.sep + img['filename'], created, opts['headers_pics'], zzx, ignoring=lambda s: filter and (s < 10240 or (not zzx and s < 20480)))
+		fetcher = Fetcher(img['url'], dirn + os.sep + img['filename'], created, opts['headers_pics'], zzx, 
+		    ignoring=lambda s: filter and (s < 10240 or (not zzx and s < 20480)))
 		bytes = fetcher.start()
 		ctx.sum_bytes += bytes
 		ctx.sum_pics += 1
@@ -109,33 +103,39 @@ class Parser(metaclass=ABCMeta):
 class WebParser(Parser):
 	def parsepics(self, card):
 		pics = card['pic_infos']
+		pics_hist = {}
 		if 'edit_count' in card and card['edit_count'] > 0: # find all history
 			hists = self.checkjson(ctx.URL_WB_ITEM_HIS2.format(card['id']), unembed=True)
 			for h in hists['statuses']: 
-				for pid in h['pic_infos']:
-					if not pid in pics: 
-						pics[pid] = hists['statuses'][pid]
-			log('WARN', 'Edited {} for {} times, {} pics found.', card['mblogid'], card['edit_count'], len(pics))
+				if 'pic_infos' in h:
+					for pid in h['pic_infos']: 
+						if not pid in pics: pics_hist[pid] = h['pic_infos'][pid]
+			if len(pics_hist) > 0:
+				log('WARN', '[{}/{}/{}] edited for {} times, {} pics current and {} more pics in history.', 
+					card['user']['screen_name'], card['user']['id'], card['mblogid'], card['edit_count'], len(pics), len(pics_hist))
+				pics = pics | pics_hist # pics.update(pics_hist)
 		return pics
 
 	def listmblog(self, pics, dir, created, bid, filter=ctx.filter_small):
 		count = 0
-		for pi in pics:
-			pic = pics[pi]
+		index = 0
+		zzx = False
+		for pid in pics:
+			pic = pics[pid]
 			url = pic['largest']['url']
 			ext = os.path.splitext(re.sub('\?.*', '', url))[1]
 			zzx = url.startswith('http://zzx.') or url.startswith('https://zzx.')
-			# if (zzx): ext = '[zzx]' + ext
-				# url = url.replace('/largeb/', '/large/')
-			filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, count, pic['pic_id'], ext)
+			filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, index, pid, ext)
+			index += 1
 			count += self.listmblog0({
-				'id': pic['pic_id'],
+				'id': pid,
 				'url': url,
 				'width': int(pic['largest']['width']),
 				'height': int(pic['largest']['height']),
 				'dirname': dir,
 				'filename': filename
 			}, filter, created, ext, zzx)
+		if zzx: log('WARN', 'zzx post [{}}/{}] fetched!', dir, bid)
 		return count
 
 	def listmblogid(self, bid, dir = None):
@@ -180,12 +180,13 @@ class WebParser(Parser):
 				if not dir:
 					dir = dirname(card['user'])
 					if dir: log('DEBUG', '{} user dowloading to {} is starting...'.format(progress, dir))
-				curr_pics = self.listmblog(card['pic_infos'], dir, card['_createdat'], card['mblogid'])
+				pics = self.parsepics(card)
+				curr_pics = self.listmblog(pics, dir, card['_createdat'], card['mblogid'])
 				if ctx.DOWN_MODE == '_u': log('DEBUG', '[{}/{}: {} ], {} pictures found.', userid, card['_createdat'].strftime('%Y%m%d_%H%M%S'), card['mblogid'], curr_pics)
 				count_pics += curr_pics
 			if ctx.DOWN_MODE == '_u': log('INFO', '[{}, page#{}, {}], {} posts & {} /w pic, total {} pictures found.', 
 				 userid, pagenum, earliest if None != earliest else 'unknown', count_pics, count_filtered, count_pics)
-		if exceed: log('WARN' if count_pics > 0 else 'INFO', '{} Exceed {} on {} [page {}], {} pictures found',
+		if exceed: log('INFO' if count_pics > 0 else 'DEBUG', '{} Exceed {} on {} [page {}], {} pictures found',
 						progress, _c(_LEVEL_COLORS['TODO'], dir if dir != None else userid),
 						_c(_LEVEL_COLORS['WARN'], 'None') if earliest == None
 							else _c(_LEVEL_COLORS['TODO'], earliest.date()) if count_pics > 0

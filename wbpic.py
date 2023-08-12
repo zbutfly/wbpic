@@ -1,4 +1,4 @@
-import sys, json, humanize, wb.context as ctx
+import sys, humanize, wb.context as ctx
 from timeit import default_timer as timer
 from wb.parser import listuser, listmblogid #, follows
 from wb.utils import log, parsesince, parseuids, bsize
@@ -11,14 +11,14 @@ def main():
 	try:
 		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = listmblogid(sys.argv[1][1:])
 		else:
-			since = parsesince()
 			uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and n[1] != '#')
 			total = len(uids)
 			c = 0
 			if isinstance(uids, dict): ctx.DOWN_MODE = ''
+			since = parsesince(' skip {}'.format(ctx.opts['skip']) if 'skip' in ctx.opts and ctx.DOWN_MODE == '' else '')
 			for uid in uids:
 				c += 1
-				if ('skip' in ctx.opts and c <= ctx.opts['skip']): continue
+				if 'skip' in ctx.opts and c <= ctx.opts['skip']: continue
 				listuser(uid, since, '[{}/{}]'.format(c, total), uids[uid] if isinstance(uids, dict) else None)
 	finally:
 		spent = (timer() - now)

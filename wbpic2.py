@@ -11,16 +11,15 @@ def main():
 	try:
 		if len(sys.argv) == 2 and sys.argv[1].startswith('#'): ctx.sum_pics = WebParser().listmblogid(sys.argv[1][1:])
 		else:
-			since = parsesince()
 			uids = parseuids(sys.argv[2:], lambda n: n[0] == '[' and n[1] != '#')
 			total = len(uids)
 			c = 0
 			parser = WebParser()
 			if isinstance(uids, dict): ctx.DOWN_MODE = ''
-				# parser = wapparser ## use wap on repos, no zzx but has history
+			since = parsesince(' skip {}'.format(ctx.opts['skip']) if 'skip' in ctx.opts and ctx.DOWN_MODE == '' else '')
 			for uid in uids:
 				c += 1
-				if ('skip' in ctx.opts and c <= ctx.opts['skip']): continue
+				if 'skip' in ctx.opts and c <= ctx.opts['skip']: continue
 				parser.listuser(uid, since, '[{}/{}]'.format(c, total),
 								uids[uid] if isinstance(uids, dict) else None)
 	finally:
