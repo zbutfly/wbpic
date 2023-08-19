@@ -120,6 +120,28 @@ class WebParser(Parser):
 				pics = pics | pics_hist # pics.update(pics_hist)
 		return pics
 
+	def downvideo(self, info, bid, created, dir): # mediainfo in 
+		url = info['playback_list'][0]['play_info']['url']
+		q = info['playback_list'][0]['meta']['quality_label']
+		i0 = url.rindex('/')
+		i1 = url.index('.', 30)
+		vid = url[i0+1:i1]
+		ext = info['format']
+		filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}.{}').format(bid, vid, q, ext)
+		dirn = ctx.basedir + ctx.DOWN_MODE + os.sep + dir
+		if not os.path.exists(dirn) or not os.path.isdir(dirn):
+			try:
+				os.makedirs(dirn, exist_ok=True)
+			except:
+				pass
+		fetcher = Fetcher(url, dirn + os.sep + filename, created, opts['headers_pics'], True)
+		    # zzx, ignoring=lambda s: filter and (s < 10240 or (not zzx and s < 20480)))
+		bytes = fetcher.start()
+		ctx.sum_bytes += bytes
+		ctx.sum_pics += 1
+		if (bytes > 0): ctx.sum_pics_downloaded += 1
+		return 1
+
 	def listmblog(self, pics, dir, created, bid, filter=ctx.filter_small):
 		count = 0
 		index = 0
@@ -144,15 +166,20 @@ class WebParser(Parser):
 	def listmblogid(self, bid, dir = None):
 		url = ctx.URL_WB_ITEM2.format(bid)
 		card = self.checkjson(url, unembed = True)
-		if not card or not 'pic_infos' in card:
+		if not card:
 			log('WARN', '{} fetched {} but no data.', dir, url)
 			return 0
 		if dir == None: dir = dirname(card['user'])
-		pics = self.parsepics(card)
 		created = parseTime(card['created_at'])
-		count = self.listmblog(pics, dir, created, bid, filter=False)
-		log('INFO', '{} fetched, {} pictures found from [https://weibo.com/{}/{}] [https://weibo.com/detail/{}].', dir, count, card['user']['id'], bid, card['id'])
-		return count
+		if 'pic_infos' in card:
+			pics = self.parsepics(card)
+			count = self.listmblog(pics, dir, created, bid, filter=False)
+			log('INFO', '{} fetched, {} pictures found from [https://weibo.com/{}/{}] [https://weibo.com/detail/{}].', 
+				dir, count, card['user']['id'], bid, card['id'])
+			return count
+		elif 'page_info' in card and int(card['page_info']['type']) == 11 and card['page_info']['object_type'] == 'video' and 'media_info' in card['page_info']:
+			return self.downvideo(card['page_info']['media_info'], bid, created, dir)
+		else: return 0
 
 	now = -1
 	def listuserpage(self, userid, after, pagenum, progress, dir, count_pics):
