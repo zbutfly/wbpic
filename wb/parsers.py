@@ -24,7 +24,8 @@ class Parser(metaclass=ABCMeta):
 		r = getjson(api)
 		if r and 1 == r['ok']: return r if unembed else r['data']
 			# if retried > 0: log('INFO', 'api {} fetching success at {}th retrying of total {}', api, retried+1, retry)
-		else: log('ERROR', 'Error [{}] for json api [{}], message {}', r['error_code'], api, r['message'] if 'message' in r else 'none')
+		elif r != None: log('ERROR', 'Error [{}] for json api [{}], message {}', 
+       			r['error_code'] if 'error_code' in r else 'unknown', api, r['message'] if 'message' in r else 'none')
 		# retried += 1
 		# log('WARN', '{} retry #{} result not ok: \n\t{}', api, retried, r)
 		time.sleep(abs(random.gauss(1, 0.4)))
@@ -106,10 +107,13 @@ class WebParser(Parser):
 		pics_hist = {}
 		if 'edit_count' in card and card['edit_count'] > 0: # find all history
 			hists = self.checkjson(ctx.URL_WB_ITEM_HIS2.format(card['id']), unembed=True)
-			for h in hists['statuses']: 
-				if 'pic_infos' in h:
-					for pid in h['pic_infos']: 
-						if not pid in pics: pics_hist[pid] = h['pic_infos'][pid]
+			if not 'statuses' in hists: 
+				log('ERROR', 'Edit {} found in {}/{}/{} but hist fetch fail.', card['edit_count'], card['user']['screen_name'], card['user']['id'], card['mblogid'])
+			else:
+				for h in hists['statuses']: 
+					if 'pic_infos' in h:
+						for pid in h['pic_infos']: 
+							if not pid in pics: pics_hist[pid] = h['pic_infos'][pid]
 			if len(pics_hist) > 0:
 				log('WARN', '[{}/{}/{}] edited for {} times, {} pics current and {} more pics in history.', 
 					card['user']['screen_name'], card['user']['id'], card['mblogid'], card['edit_count'], len(pics), len(pics_hist))
@@ -121,8 +125,7 @@ class WebParser(Parser):
 		index = 0
 		zzx = False
 		for pid in pics:
-			pic = pics[pid]
-			url = pic['largest']['url']
+			url = pics[pid]['largest']['url']
 			ext = os.path.splitext(re.sub('\?.*', '', url))[1]
 			zzx = url.startswith('http://zzx.') or url.startswith('https://zzx.')
 			filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, index, pid, ext)
@@ -130,12 +133,12 @@ class WebParser(Parser):
 			count += self.listmblog0({
 				'id': pid,
 				'url': url,
-				'width': int(pic['largest']['width']),
-				'height': int(pic['largest']['height']),
+				'width': int(pics[pid]['largest']['width']),
+				'height': int(pics[pid]['largest']['height']),
 				'dirname': dir,
 				'filename': filename
 			}, filter, created, ext, zzx)
-		if zzx: log('WARN', 'zzx post [{}}/{}] fetched!', dir, bid)
+		if zzx: log('WARN', 'zzx post [{}/{}] fetched!', dir, bid)
 		return count
 
 	def listmblogid(self, bid, dir = None):
@@ -199,7 +202,7 @@ class WebParser(Parser):
 		if dir: log('DEBUG', '{} Parsing "{}" uid [{}]'.format(progress, _c(_LEVEL_COLORS['TODO'], dir), userid))
 
 		count_pics = 0
-		pageno = 1
+		pageno = ctx.opts['skip'] if 'skip' in ctx.opts else 1 
 		while (pageno > 0):
 			pageno, count_pics = self.listuserpage(userid, after, pageno, progress, dir, count_pics)
 		return count_pics

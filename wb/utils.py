@@ -1,4 +1,4 @@
-import sys, os, time, calendar, datetime, dateutil, requests, math, random, re, pyjson5, shutil, copy
+import sys, os, time, calendar, datetime, dateutil, requests, math, random, re, pyjson5, shutil, copy, traceback
 from timeit import default_timer as timer
 from colorama import Fore as fcolor
 # from hurry.filesize import bsize
@@ -34,6 +34,8 @@ def loglevel(level):
 def log(level, format, *vars):
 	if _LOG_LEVEL and _LEVEL_GRADE[level.upper()] < _LEVEL_GRADE[_LOG_LEVEL.upper()]:
 		return
+	# for line in traceback.walk_stack.format_stack().reverse:
+	# 	print(line.strip())
 	level = level if level else 'INFO'
 	levcolor = _LEVEL_COLORS[level.upper()]
 	# if threadpool:
@@ -139,7 +141,7 @@ def httpget(target, headers, interval, retry):
 		try:
 			with session.get(target, headers = headers, stream = False, verify = False) as r:
 				spent = timer() - now
-				if r.status_code == 418 or r.status_code > 500: # retry only for spam or server-side error
+				if r.status_code == 418 or r.status_code >= 500: # retry only for spam or server-side error
 					retried = retried + 1
 					log('WARN', '{} retry #{}, result {}', target, retried, r)
 					time.sleep(abs(random.gauss(interval*10, interval*4)))
@@ -148,6 +150,7 @@ def httpget(target, headers, interval, retry):
 					log('ERROR', '{} fetch incorrectly spent {} ms secs return {}, {}', target, msec(spent), r, r.text)
 					return
 				if (spent > 2): log('DEBUG' if spent < 5 else 'WARN', '{} fetch slow spent {} secs return {}', target, msec(spent), r)
+				r.raise_for_status()
 				return r.text
 		except Exception as e:
 			log('ERROR', '{} spent {} secs and failed {}', target, msec(timer() - now), e)

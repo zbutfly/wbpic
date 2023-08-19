@@ -19,7 +19,7 @@ def main():
 			since = parsesince(' skip {}'.format(ctx.opts['skip']) if 'skip' in ctx.opts and ctx.DOWN_MODE == '' else '')
 			for uid in uids:
 				c += 1
-				if 'skip' in ctx.opts and c <= ctx.opts['skip']: continue
+				if ctx.DOWN_MODE == '' and 'skip' in ctx.opts and c <= ctx.opts['skip']: continue
 				parser.listuser(uid, since, '[{}/{}]'.format(c, total),
 								uids[uid] if isinstance(uids, dict) else None)
 	finally:

@@ -53,12 +53,12 @@ _HTTP_HEADERS_AUTH = opts.get('headers_auth')
 
 def getjson(url):
 	response = httpget(url, _HTTP_HEADERS_AUTH, _HTTP_SLEEP_SECS, _RETRY_MAX)
+	if response == None: return
 	try:
 		result = pyjson5.loads(response)
 		if result: return result
 		log('ERROR', 'json invalid: {}\n{}', url, response)
-	except Exception as e:
-		log('ERROR', '{} json parse failed:\n{}', url, response)
+	except Exception as e: log('ERROR', '{} json parse failed:\n{}', url, response)
 
 sum_bytes = 0
 sum_pics = 0
