@@ -19,14 +19,15 @@ class Parser(metaclass=ABCMeta):
 # private
 	def checkjson(self, api, retry=3, unembed = False):
 		log('DEBUG', 'weibo api {} parsing...', api)
-	# retried = 0
-	# while retried < retry:
-		r = getjson(api)
-		if r and 1 == r['ok']: return r if unembed else r['data']
-			# if retried > 0: log('INFO', 'api {} fetching success at {}th retrying of total {}', api, retried+1, retry)
-		elif r != None: log('ERROR', 'Error [{}] for json api [{}], message {}', 
-       			r['error_code'] if 'error_code' in r else 'unknown', api, r['message'] if 'message' in r else 'none')
-		# retried += 1
+		retried = 0
+		while retried < retry:
+			r = getjson(api)
+			if r and 1 == r['ok']:
+				if retried > 0: log('INFO', 'api {} fetching success at {}th retrying of total {}', api, retried+1, retry)
+				return r if unembed else r['data']
+			elif r != None: log('ERROR', 'Error [{}] for json api [{}], message {}', 
+					r['error_code'] if 'error_code' in r else 'unknown', api, r['message'] if 'message' in r else 'none')
+			retried += 1
 		# log('WARN', '{} retry #{} result not ok: \n\t{}', api, retried, r)
 		time.sleep(abs(random.gauss(1, 0.4)))
 	# if retried >= retry:
@@ -177,7 +178,9 @@ class WebParser(Parser):
 			log('INFO', '{} fetched, {} pictures found from [https://weibo.com/{}/{}] [https://weibo.com/detail/{}].', 
 				dir, count, card['user']['id'], bid, card['id'])
 			return count
-		elif 'page_info' in card and int(card['page_info']['type']) == 11 and card['page_info']['object_type'] == 'video' and 'media_info' in card['page_info']:
+		elif ('page_info' in card 
+			and (int(card['page_info']['type']) == 11 or int(card['page_info']['type']) == 5) 
+			and card['page_info']['object_type'] == 'video' and 'media_info' in card['page_info']):
 			return self.downvideo(card['page_info']['media_info'], bid, created, dir)
 		else: return 0
 
