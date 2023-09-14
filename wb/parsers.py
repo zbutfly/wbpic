@@ -152,7 +152,6 @@ class WebParser(Parser):
 			ext = os.path.splitext(re.sub('\?.*', '', url))[1]
 			zzx = url.startswith('http://zzx.') or url.startswith('https://zzx.')
 			filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, index, pid, ext)
-			index += 1
 			count += self.listmblog0({
 				'id': pid,
 				'url': url,
@@ -161,7 +160,22 @@ class WebParser(Parser):
 				'dirname': dir,
 				'filename': filename
 			}, filter, created, ext, zzx)
-		if zzx: log('WARN', 'zzx post [{}/{}] fetched!', dir, bid)
+			if 'video' in pics[pid]:
+				url = pics[pid]['video']
+				vfn = os.path.splitext(re.sub('.*%2F', '', url))
+				ext = vfn[1]
+				filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, index, vfn[0], ext)
+				zzx  = True
+				count += self.listmblog0({
+					'id': pid,
+					'url': url,
+					'width': int(pics[pid]['largest']['width']),
+					'height': int(pics[pid]['largest']['height']),
+					'dirname': dir,
+					'filename': filename
+				}, filter, created, ext, zzx)
+			index += 1
+		if zzx or 'video' in pics[pid]: log('WARN', 'zzx/live post [{}/{}] fetched!', dir, bid)
 		return count
 
 	def listmblogid(self, bid, dir = None):
