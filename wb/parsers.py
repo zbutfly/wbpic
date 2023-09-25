@@ -121,6 +121,57 @@ class WebParser(Parser):
 				pics = pics | pics_hist # pics.update(pics_hist)
 		return pics
 
+	def downmixmedia(self, pics, dir, created, bid): # mediainfo in 
+		count = 0
+		zzx = False
+		for pi in range(0, len(pics)):
+			if (pics[pi]['type'] == 'video'):
+				minfo = pics[pi]['data']['media_info']
+				pinfo = pics[pi]['data']['pic_info']
+				fid = os.path.splitext(re.sub('.*/', '', pinfo['pic_big']['url']))[0]
+				url = minfo['mp4_hd_url']
+
+				# list video resolutions for improving
+				keys = 'format:' + minfo['format']
+				for n in minfo:
+					if isinstance(minfo[n], str) and (minfo[n].startswith('https://') or minfo[n].startswith('http://')):
+						keys += ',' + n
+				log('WARN', 'Video QS: ' + keys)
+
+				ext = os.path.splitext(re.sub('\?.*', '', url))[1]
+				filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi, fid, ext)
+				dirn = ctx.basedir + ctx.DOWN_MODE + os.sep + dir
+				if not os.path.exists(dirn) or not os.path.isdir(dirn):
+					try:
+						os.makedirs(dirn, exist_ok=True)
+					except:
+						pass
+				fetcher = Fetcher(url, dirn + os.sep + filename, created, opts['headers_pics'], True)
+				bytes = fetcher.start()
+				ctx.sum_bytes += bytes
+				ctx.sum_pics += 1
+				if (bytes > 0): ctx.sum_pics_downloaded += 1
+				count+=1
+			elif (pics[pi]['type'] == 'pic'):
+				# minfo = pics[pi]['data']['media_info']
+				pinfo = pics[pi]['data']
+				fid = pinfo['pic_id']
+				url = pinfo['largest']['url']
+				ext = os.path.splitext(re.sub('\?.*', '', url))[1]
+				zzx = url.startswith('http://zzx.') or url.startswith('https://zzx.')
+				filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, pi, fid, ext)
+				count += self.listmblog0({
+					'id': fid,
+					'url': url,
+					'width': int(pinfo['largest']['width']),
+					'height': int(pinfo['largest']['height']),
+					'dirname': dir,
+					'filename': filename
+				}, filter, created, ext, zzx)
+
+			else: log('ERROR', 'Unknown type {} on {}/{}/{}', pics[pi]['type'], dir, bid, pi);
+		return count
+
 	def downvideo(self, info, bid, created, dir): # mediainfo in 
 		url = info['playback_list'][0]['play_info']['url']
 		q = info['playback_list'][0]['meta']['quality_label']
@@ -160,11 +211,13 @@ class WebParser(Parser):
 				'dirname': dir,
 				'filename': filename
 			}, filter, created, ext, zzx)
-			if 'video' in pics[pid]:
+			if 'video' in pics[pid] and ext != '.gif':
 				url = pics[pid]['video']
-				vfn = os.path.splitext(re.sub('.*%2F', '', url))
-				ext = vfn[1]
-				filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, index, vfn[0], ext)
+				vfn = re.sub('.*/', '', re.sub('\?.*', '', url))
+				if vfn.find('.') < 0: 
+					vfn = re.sub('\?.*', '', re.sub('.*%2F', '', url))
+				ext = os.path.splitext(vfn)[1]
+				filename = created.strftime('%Y%m%d_%H%M%S-{}-{}-{}{}').format(bid, index, pid, ext)
 				zzx  = True
 				count += self.listmblog0({
 					'id': pid,
@@ -196,6 +249,9 @@ class WebParser(Parser):
 			and (int(card['page_info']['type']) == 11 or int(card['page_info']['type']) == 5) 
 			and card['page_info']['object_type'] == 'video' and 'media_info' in card['page_info']):
 			return self.downvideo(card['page_info']['media_info'], bid, created, dir)
+		elif ('mix_media_info' in card and 'items' in card['mix_media_info'] 
+			and len(card['mix_media_info']['items']) > 0):
+			return self.downmixmedia(card['mix_media_info']['items'], dir, created, bid)
 		else: return 0
 
 	now = -1
