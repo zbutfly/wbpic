@@ -139,7 +139,7 @@ def httpget(target, headers, interval, retry):
 	now = timer()
 	while retried < retry:
 		try:
-			with session.get(target, headers = headers, stream = False, verify = False) as r:
+			with session.get(target, allow_redirects = False, headers = headers, stream = False, verify = False) as r:
 				spent = timer() - now
 				if r.status_code == 418 or r.status_code >= 500: # retry only for spam or server-side error
 					retried = retried + 1
@@ -147,14 +147,13 @@ def httpget(target, headers, interval, retry):
 					time.sleep(abs(random.gauss(interval*10, interval*4)))
 					continue
 				if r.status_code < 200 and r.status_code >= 300:
-					log('ERROR', '{} fetch incorrectly spent {} ms secs return {}, {}', target, msec(spent), r, r.text)
+					log('ERROR', '{} fetch incorrectly spent {} ms secs return {}, {}', target, msec(spent), r, '\n'.join(r.text.split('\n')[:3]))
 					return
 				if (spent > 2): log('DEBUG' if spent < 5 else 'WARN', '{} fetch slow spent {} secs return {}', target, msec(spent), r)
 				r.raise_for_status()
-				return r.text
+				return r
 		except Exception as e:
-			log('ERROR', '{} spent {} secs and failed {}', target, msec(timer() - now), e)
-			return
+			return e
 		finally:
 			time.sleep(abs(random.gauss(interval, interval/2.5)))
 	log('ERROR', '{} failed after retries {} and spent {} ms.', target, retried, msec(timer() - now))

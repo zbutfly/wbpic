@@ -17,16 +17,17 @@ class Parser(metaclass=ABCMeta):
 	def listuser(self, userid, after, progress, dir=None): pass 
 
 # private
-	def checkjson(self, api, retry=3, unembed = False):
+	def checkjson(self, api, retry=3, unembed = False, dir = None):
 		log('DEBUG', 'weibo api {} parsing...', api)
 		retried = 0
 		while retried < retry:
-			r = getjson(api)
+			r = getjson(api, dir = dir)
 			if r and 1 == r['ok']:
 				if retried > 0: log('INFO', 'api {} fetching success at {}th retrying of total {}', api, retried+1, retry)
 				return r if unembed else r['data']
 			elif r != None: log('ERROR', 'Error [{}] for json api [{}], message {}', 
 					r['error_code'] if 'error_code' in r else 'unknown', api, r['message'] if 'message' in r else 'none')
+			elif r == None: return
 			retried += 1
 		# log('WARN', '{} retry #{} result not ok: \n\t{}', api, retried, r)
 		time.sleep(abs(random.gauss(1, 0.4)))
@@ -258,10 +259,10 @@ class WebParser(Parser):
 	def listuserpage(self, userid, after, pagenum, progress, dir, count_pics):
 		if pagenum == 1 and ctx.DOWN_MODE == '_u': log('INFO', '[{}/page:0] start.', userid)
 		if (WebParser.now > 0 and timer() - WebParser.now < 0.5): time.sleep(abs(random.gauss(0.5, 0.2))) # too fast, sleep
-		data = super().checkjson(ctx.URL_WB_ALL.format(userid, pagenum))
+		data = super().checkjson(ctx.URL_WB_ALL.format(userid, pagenum), dir = dir)
 		WebParser.now = timer()
 		if not data:
-			log('WARN', '{} fetched but no data, {} pictures found.', dir, count_pics)
+			# log('WARN', '{} fetched but no data, {} pictures found.', dir, count_pics)
 			return 0, count_pics
 		cards = data['list']
 		count_orig = len(cards)
@@ -276,17 +277,21 @@ class WebParser(Parser):
 				break
 		exceed = earliest == None or earliest.date() < after # last of page exceed
 		cards = list(filter(lambda c:
-				c['user']['id'] == int(userid) and not 'retweeted_status' in c and 'pic_infos' in c and c['_createdat'].date() >= after, cards))
+				c['user']['id'] == int(userid) and not 'retweeted_status' in c and ('pic_infos' in c or 'mix_media_info' in c) and c['_createdat'].date() >= after, cards))
 		count_filtered = len(cards)
 		if len(cards) > 0:
 			for card in cards:
 				if not dir:
 					dir = dirname(card['user'])
 					if dir: log('DEBUG', '{} user dowloading to {} is starting...'.format(progress, dir))
-				pics = self.parsepics(card)
-				curr_pics = self.listmblog(pics, dir, card['_createdat'], card['mblogid'])
-				if ctx.DOWN_MODE == '_u': log('DEBUG', '[{}/{}: {} ], {} pictures found.', userid, card['_createdat'].strftime('%Y%m%d_%H%M%S'), card['mblogid'], curr_pics)
-				count_pics += curr_pics
+				if ('pic_infos' in card):
+					pics = self.parsepics(card)
+					count_curr_pics = self.listmblog(pics, dir, card['_createdat'], card['mblogid'])
+				elif ('mix_media_info' in card):
+					count_curr_pics = self.downmixmedia(card['mix_media_info']['items'], dir, card['_createdat'], card['mblogid'])
+				else: count_curr_pics = 0
+				if ctx.DOWN_MODE == '_u': log('DEBUG', '[{}/{}: {} ], {} pictures found.', userid, card['_createdat'].strftime('%Y%m%d_%H%M%S'), card['mblogid'], count_curr_pics)
+				count_pics += count_curr_pics
 			if ctx.DOWN_MODE == '_u': log('INFO', '[{}, page#{}, {}], {} posts & {} /w pic, total {} pictures found.', 
 				 userid, pagenum, earliest if None != earliest else 'unknown', count_pics, count_filtered, count_pics)
 		if exceed: log('INFO' if count_pics > 0 else 'DEBUG', '{} Exceed {} on {} [page {}], {} pictures found',

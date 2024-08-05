@@ -1,4 +1,5 @@
 import os, pyjson5
+from requests.exceptions import HTTPError
 from wb.utils import log, httpget, session, session_static, WBPIC_DIR, loglevel
 
 URL_WB_PROFILE = 'https://m.weibo.cn/profile/info?uid={}'
@@ -51,14 +52,26 @@ _RETRY_MAX = opts.get('retry', 3)
 _HTTP_HEADERS_AUTH = opts.get('headers_auth')
 
 
-def getjson(url):
-	response = httpget(url, _HTTP_HEADERS_AUTH, _HTTP_SLEEP_SECS, _RETRY_MAX)
+def getjson(url, dir = None):
+	r = httpget(url, _HTTP_HEADERS_AUTH, _HTTP_SLEEP_SECS, _RETRY_MAX)
+	if r == None: return
+	if isinstance(r, HTTPError) :
+		if r.response.status_code == 400:
+			log('ERROR', '{} NOT EXISTED: {}', dir if dir != None else 'USER', url)
+		else: 
+			log('ERROR', '{} failed: {}, error: {}', dir if dir != None else 'USER', url, r)
+		return
+	response = r.text
+	if r.is_redirect and r.headers['location'].startswith('https://weibo.com/sorry?usernotexists&'):
+		log('ERROR', ' {} had BANNED: {}', dir if dir != None else 'USER', url);
+		return
 	if response == None: return
 	try:
 		result = pyjson5.loads(response)
 		if result: return result
 		log('ERROR', 'json invalid: {}\n{}', url, response)
-	except Exception as e: log('ERROR', '{} json parse failed:\n{}', url, response)
+	except Exception as e: 
+		log('ERROR', '{} json parse failed:\n{}', url, response)
 
 sum_bytes = 0
 sum_pics = 0
